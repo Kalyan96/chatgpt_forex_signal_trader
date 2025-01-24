@@ -1,0 +1,930 @@
+TVAPP.user = {
+	me: this,
+	myData: {},
+	waitingForContacts: false,
+	props: {
+		sessionID: "",
+		activity: "",
+		userName: "",
+		regStatus: "",
+		isGuest: "",
+        email: "",
+        teeAccountExists: false,
+		contacts: [],
+		channelInfo: {
+			facebook: {is_tethered: "no", is_authorized: "no"},
+			linkedin: {is_tethered: "no", is_authorized: "no"},
+			twitter:  {is_tethered: "no", is_authorized: "no"}
+		},
+		tetheredChannels: [],
+		authenticatedChannels: [],
+		failedChannels: []
+	},
+
+	getUserInfo: function() {
+		TVAPP.user.props.userName = "Guest";
+		TVAPP.user.props.regStatus = "unregistered";
+		TVAPP.user.props.isGuest = true;
+		j$(document).trigger("userInfoUpdated", TVAPP.user.props);
+	},
+
+	handleUpdateUserInfo: function(myData) {
+		TVAPP.user.props.tetheredChannels = [];
+		TVAPP.user.props.authenticatedChannels = [];
+
+		for (var i = 0; i < myData.channel_info.length; i++) {
+			var tmp = myData.channel_info[i],
+				tmpObj = {
+					"is_tethered": tmp.is_tethered,
+					"is_authenticated": tmp.is_authenticated
+				};
+
+			if (tmpObj.is_tethered == "no") {
+				tmpObj.className = "untethered";
+			} else {
+				tmpObj.className = "tethered";
+				TVAPP.user.props.tetheredChannels.push(tmp.channel_short_name);
+			}
+
+			if (tmpObj.is_authenticated == "yes") {
+				TVAPP.user.props.authenticatedChannels.push(tmp.channel_short_name);
+			}
+
+			TVAPP.user.props.channelInfo[tmp.channel_short_name] = tmpObj;
+		};
+
+		TVAPP.user.props.userName = myData.active_user_name;
+		TVAPP.user.props.sessionID = myData.session_id;
+        TVAPP.user.props.email = myData.email;
+        TVAPP.user.props.teeAccountExists = myData.TEEAccountExists == '10';
+
+		j$.log("setRegStatus: " + myData.registration_status);
+		TVAPP.user.setRegStatus(myData.registration_status);
+
+		TVAPP.user.setIsGuest(myData.is_guest);
+
+		j$(document).trigger("userInfoUpdated", TVAPP.user.props);
+
+		if( TVAPP.property.show_locale_list === 'true' || window.location.href.indexOf('show_locale_list') > 1 ){
+			TVAPP.notify.open( TVAPP.smDict('notify.content.LocaleSelection') , {iconClass: 'language', iconContent: '&#xe752;'} );
+			j$('#jSessionLocale').val(TVAPP.property.session_locale_id).chosen({
+  			disable_search_threshold: 50,
+        no_results_text: TVAPP.smDict('Chosen.no_results'),
+  			placeholder_text_multiple: TVAPP.smDict('Chosen.placeholder_text_multiple'),
+  			placeholder_text_single: TVAPP.smDict('Chosen.placeholder_text_single')
+			});
+
+			if( j$('body.mobile').length ){
+				j$('#jSessionLocale').chosen({
+          no_results_text: TVAPP.smDict('Chosen.no_results'),
+    			placeholder_text_multiple: TVAPP.smDict('Chosen.placeholder_text_multiple'),
+    			placeholder_text_single: TVAPP.smDict('Chosen.placeholder_text_single')
+				}).change( function(){
+					TVAPP.user.saveSessionLocale( j$('#jSessionLocale').val(), false );
+				});
+			}else{
+				j$('#jSessionLocale').on('change', function(){
+					TVAPP.user.saveSessionLocale( j$('#jSessionLocale').val(), false );
+				});
+			}
+
+			j$('.jCloseNotify').on('click', function(){
+				TVAPP.user.saveSessionLocale( TVAPP.property.session_locale_id, true );
+			});
+		}
+	},
+
+	updateUserInfo: function() {
+		j$.post(
+			TVAPP.guid("/ajax/user_info"),
+			function(data) {
+				if (data.Status == "OK") {
+					myData = data.Result.current_user;
+
+					j$.log("current user: " + data.Result.current_user.session_id);
+
+					console.log(TVAPP.property.session_locale_id, TVAPP.property.user_info.locale_id, myData.locale_id);
+
+					var old_locale_id = !!TVAPP.property.session_locale_id ? TVAPP.property.session_locale_id : TVAPP.property.user_info.locale_id;
+
+					if (myData.registration_status == 'registered' && myData.is_guest == 'false' &&
+						!TVAPP.nextAction &&		// if registered user with no next action,
+						j$('#modal-window').length < 1 &&	// no modals open,
+						myData.locale_id != old_locale_id) {	// and the user's locale is different from page,
+						window.location.reload();	// reload page to keep page language consistent
+					}
+
+					TVAPP.user.handleUpdateUserInfo(myData);  // refresh user
+
+					TVAPP.user.likelyUser.handleUpdateUserInfo(data.Result.likely_user); // refresh likely user
+
+					TVAPP.property.user_info = myData; // refresh property user info
+
+					TVAPP.refreshUserStatus(); // refresh site
+				}
+				else{
+					//j$.log("that's not ok");
+				}
+			},
+			"json"
+		);
+	},
+
+	updateReferrerCodePrefix: function(callback) {
+		j$.get(
+			TVAPP.guid('/ajax/user/referrer-code-prefix'),
+			function(data) {
+				if (data.Status == "OK") {
+					TVAPP.property.referrer_code_prefix = data.Result.referrer_code_prefix;
+				}
+				if (callback) callback();
+			},
+			'json'
+		);
+	},
+
+	getActivity: function() {
+		return TVAPP.user.props.activity;
+	},
+
+	setActivity: function(activity) {
+		TVAPP.user.props.activity = activity;
+		j$.log("USER -> CURRENT ACTIVITY: " + TVAPP.user.props.activity);
+	},
+
+	setChannelStatus: function(channel, status) {
+		if (status == "authorized") {
+			TVAPP.user.props.channelInfo[channel].is_authorized = "yes";
+		}
+
+		if (channel == "facebook") {
+			j$(document).trigger("fbAuthorized", {step: "2"});
+		}
+		else if (channel == "linkedin") {
+			j$(document).trigger("liAuthorized", {step: "2"});
+		}
+		else if (channel == "twitter") {
+			j$(document).trigger("twAuthorized", {step: "2"}); //TODO:
+		}
+
+		j$(document).trigger("userInfoUpdated", TVAPP.user.props);
+	},
+
+	setRegStatus: function(status) {
+		if (TVAPP.user.props.regStatus != status) {
+			TVAPP.user.props.regStatus = status;
+		}
+	},
+
+    setIsFromSignUpWithEmail: function(value) {
+        if (TVAPP.user.props.isFromSignUpWithEmail != value) {
+            TVAPP.user.props.isFromSignUpWithEmail = value;
+        }
+    },
+
+	setIsGuest: function(guest_status) {
+		if (TVAPP.user.props.isGuest != guest_status) {
+			TVAPP.user.props.isGuest = guest_status;
+		}
+	},
+
+	getTetheredChannels: function() {
+		j$.log("get tethered channels: " + JSON.stringify(TVAPP.user.props.tetheredChannels));
+		return TVAPP.user.props.tetheredChannels;
+	},
+
+	getAuthenticatedChannels: function() {
+		j$.log("get authenticated channels: " + JSON.stringify(TVAPP.user.props.authenticatedChannels));
+		return TVAPP.user.props.authenticatedChannels;
+	},
+
+	updateContacts: function() {
+		waitingForContacts = true;
+		//TODO: Catch errors here.  convert to j$.ajax()
+		var that = this;
+
+		j$.post(TVAPP.guid("/ajax/user_contacts"), function(data) {
+			if (data.Status == "OK") {
+				TVAPP.user.setChannelFailures(data.Result.channelFailures);
+				myData = data.Result.contacts;
+				var _newData = [];
+				for (var i = 0; i < myData.length; i++) {
+					var smName = myData[i].first_name + " " + myData[i].last_name;
+
+					myData[i].label = smName;
+
+					_newData.push(myData[i]);
+				};
+				TVAPP.user.setContacts(_newData);
+			} else {
+				//j$.log("that's not ok");
+			}
+			waitingForContacts = false;
+		}, "json");
+	},
+
+	getRegStatus: function() {
+		return TVAPP.user.props.regStatus;
+	},
+
+    getIsFromSignUpWithEmail : function () {
+        return TVAPP.user.props.isFromSignUpWithEmail;
+    },
+
+	getIsGuest: function(guest_status) {
+		return TVAPP.user.props.isGuest;
+	},
+
+	setContacts: function(data) {
+		TVAPP.user.props.contacts = data;
+		j$(document).trigger("contactsUpdated", { user: TVAPP.user }); // used to be { user: this.me }
+	},
+
+	setChannelFailures: function(data) {
+		TVAPP.user.props.failedChannels = data;
+	},
+
+
+
+	/* Handlers */
+
+	handleContactsUpdated: function(e, data) {
+
+	},
+
+	handleApplyClicked: function(e, data) {
+		if (TVAPP.smDict("custom.TitleImage.apply") !== "custom.TitleImage.apply") {
+			var obj = JSON.parse(TVAPP.smDict("custom.TitleImage.apply"));
+			TVAPP.user.setActivity(obj.name);
+		} else {
+			TVAPP.user.setActivity("apply");
+		}
+	},
+
+	handleReferFriendClicked: function(e, data) {
+		TVAPP.user.setActivity("referFriend");
+	},
+
+	handleChannelAuthorized: function(e, data) {
+
+		TVAPP.user.updateUserInfo();
+		// TODO: ideally, this should only be done on the channel
+		//       that was just authorized (if the user was already logged in)
+		TVAPP.user.updateContacts();
+
+		if (TVAPP.user.props.activity == "") {
+			TVAPP.user.setActivity("register");
+		}
+	},
+
+	handleAuthorizeSM: function(e, data) {
+
+		j$.log("USER: SelectMinds authorized");
+
+		if (TVAPP.user.props.activity == "") {
+			setActivity("register");
+		}
+
+		if (TVAPP.user.props.regStatus != "registered") {
+		}
+	},
+
+	handleReferClicked: function(e, data) {
+		TVAPP.user.setActivity("refer");
+	},
+
+	handleRegisterClicked: function(e, data) {
+		data = data || {};
+		j$.extend(data, {mode:"register"});
+		j$(document).trigger("registerModal", data);
+		TVAPP.user.setActivity("register");
+	},
+
+	handleRegisterSubmitted: function(e, data) {
+		//setRegStatus("registered");
+		//j$(document).trigger("userRegistered");
+	},
+
+	handleUserRegistered: function(e, data) {
+		TVAPP.user.updateUserInfo();
+		TVAPP.user.updateContacts();
+	},
+
+	handleLoginClicked: function(e, data) {
+		data = data || {};
+		j$.extend(data, {mode:"register"});
+		j$(document).trigger("loginModal", data);
+		TVAPP.user.setActivity("register");
+	},
+
+	handleTrayClosed: function(e, data) {
+		TVAPP.user.setActivity("");
+	},
+
+	handleSendJobClicked: function(e, data) {
+		TVAPP.user.setActivity("sendJob");
+	},
+
+	handleUserInfoUpdated: function(e, data) {
+		j$.log("handleUserInfoUpdated, TVAPP.mode = " + TVAPP.mode + " | " + data.regStatus);
+
+		if (data.regStatus == "registered" || data.regStatus == "emailverified") {
+			if (TVAPP.mode == "refer") {
+				if (!(j$(".jKeyRegistered").hasClass("jKeyVisible"))) {
+					j$(".jKeyUnregistered").removeClass("jKeyVisible");
+					j$(".jKeyRegistered").addClass("jKeyVisible");
+				}
+				j$("#header .key .username").html(data.userName);
+			}
+
+			if (TVAPP.nextAction) {
+				j$.log("bio: " + TVAPP.user.getRegStatus());
+				TVAPP.nextAction();
+			} //Evan 1.59 -smart agent story
+
+
+			j$(".jActiveRightButton").each(function() {
+				//refresh the activity div for the registered user
+				if(j$(this).hasClass("jActivityFeedBtn")) { //if activity feed is active
+				//j$.log("modal.js: handleUserInfoUpdated: updating activity feeds");
+					var contentHTML = TVAPP.smLoadContent("activity-feed-base-content");
+				    j$(".jActivityFeedContent").html( contentHTML );
+				}
+			});
+			if (j$(".jReferMessageContent").length) {
+				//refresh the referral msg for the registered user
+				var msgHTML = TVAPP.smLoadContent("refer-message-content");
+				j$(".jReferMessageContent").html( msgHTML );
+			}
+
+			TVAPP.inRegistrationProcess = false;
+
+		} else if (data.regStatus == "unregistered" && TVAPP.inRegistrationProcess) {
+			if (!(j$(".jKeyUnregistered").hasClass("jKeyVisible"))) {
+				j$(".jKeyRegistered").removeClass("jKeyVisible");
+				j$(".jKeyRegistered").addClass("jKeyVisible");
+			}
+		}
+	},
+
+	handleRegisterModal: function(e, data) {
+		data = data || {};
+		TVAPP.login.bindRegister(data);
+		if (TVAPP.user.getRegStatus() == "unregistered" && TVAPP.user.likelyUser.getRegStatus() == "unregistered") {
+			if (data.registrationType == "recruiter") {
+				TVAPP.modal.open("register_modal_recruiter", {}, data);
+			} else if (data.registrationType == "weibo") {
+					TVAPP.modal.open("login_modal_no_channels", {}, data);
+			} else {
+				// check if there are any social channels available
+				if(TVAPP.property.channels.available) {
+					TVAPP.modal.open("register_modal_landing", {}, data);
+				// if not skip straight to email registration
+				} else {
+					TVAPP.modal.open("register_modal_email", {}, data);
+				}
+			}
+		} else if (TVAPP.user.props.tetheredChannels.length == 0 && data.needs_social) {
+			TVAPP.modal.open("register_modal_landing", {}, j$.extend(data, {context:"social_only=1"}));	// SOCIAL ICONS ONLY
+		} else {
+			j$(document).trigger('forceLogin');
+		}
+	},
+
+	handleRegisterModalInitialize: function(e, data) {
+		asTrackEvent("Modal", data.mode, "");
+		asTrackPageview("/ga/ajax/" + data.mode);
+		data = data || {};
+		var modal = j$('#cboxLoadedContent');
+
+		// center the channels vertically (desktop only)
+		if(!j$('body').hasClass('mobile')){
+			j$('.jChannelSection',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.jChannelSection',modal).height())/2;
+			});
+			j$('.email_signup',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.email_signup',modal).outerHeight())/2;
+			});
+			// need to explicitly set the height for scaling the "OR"
+			j$('.signin_wrapper', modal).height(j$('.signin_wrapper', modal).height()); // gave in and added to css
+		}
+
+
+		j$(".jChannelSection a", modal)
+			.click(function(event) {
+				event.preventDefault();
+				TVAPP.login[j$(this).attr('data-channel')](j$.extend({},data,{click_event:event}));
+			})
+			.each(function() {
+				if (j$(this).hasClass("custom_tooltip")) {
+					j$(this).tooltip({
+						placement:'left',
+						title: TVAPP.smDict('SocialNetwork.TooltipText.'+j$(this).attr('id'))
+					});
+				}
+			});
+
+		j$(".jRegisteredEmailLogin", modal).click(function() {
+			j$(document).trigger('loginModal', j$.extend({},data,{saveState:true}));
+		});
+
+		j$('.jLinkSMAuth', modal).click(function() {
+			TVAPP.modal.open("register_modal_email", {}, data);
+		});
+
+	},
+
+	handleRegisterEmailInitialize: function(e, data) {
+		data = data || {};
+		var modal = j$('#cboxLoadedContent');
+		TVAPP.user.bindDetermineRelationship();
+
+		j$('.jDetermineRelationship:checked').click();
+
+		j$('.jTermsConditionsModal', modal).click(function(e) {
+			e.preventDefault();
+			TVAPP.modal.open("terms_cond_modal", {}, {saveState: true});
+		});
+		j$('.jTermsConditionsModal').attr("title",j$('.jTermsConditionsModal').text());
+		j$('.jPrivacySecurityModal', modal).click(function(e) {
+			e.preventDefault();
+			TVAPP.modal.open("privacy_security_modal", {}, {saveState: true, action: e.currentTarget});
+		});
+
+		if (j$('.register_finish', modal).length) {
+			// if last name is not empty nor equal to placeholder,
+			if( (!TVAPP.isEmpty(j$("input[name='User.last_name']").val()) && (j$("input[name='User.last_name']").val() !== j$("input[name='User.last_name']").attr('placeholder'))) && (!TVAPP.isEmpty(j$("input[name='User.first_name']").val()) && (j$("input[name='User.first_name']").val() !== j$("input[name='User.first_name']").attr('placeholder'))))
+			{
+				j$(".jNameHolder").hide(); j$.colorbox.resize();
+			}
+		}
+
+		if (j$("#password_typed", modal).length) {
+			TVAPP.passwordRequirementsTooltip(j$("#password_typed", modal), j$(".jTooltip",modal), modal);
+		}
+
+		j$('input.inputtypetext[type="text"], input.inputtypepassword[type="password"]', modal).bind("keydown", function(e) {
+			if (e.which == 13) {
+				j$(this).blur();
+				TVAPP.user.registerSubmit(e, data);
+			}
+		});
+
+		j$(".jRegisterSubmit").click(function(event) {
+			TVAPP.user.registerSubmit(event, data);
+		});
+		/* Hierarchical Location Selectors */
+		j$('.jLocationLevelContainer').hierarchicalLocationSelect({multiselect: false});
+		j$.colorbox.resize();
+		j$(modal).on("change", ".jLocationLevelContainer select", function(e){
+			setTimeout(function(){ j$.colorbox.resize(); }, 20 );
+		});
+		j$(".jAddLocation, .jClearSelector, .jRemoveLocation", modal).on('click', function(){
+			setTimeout(function(){ j$.colorbox.resize(); }, 20);
+		});
+	},
+
+
+	handleLoginModalNoChannelsInitialize: function(e, data) {
+		asTrackEvent("Modal", data.mode, "");
+		asTrackPageview("/ga/ajax/" + data.mode);
+		data = data || {};
+		var modal = j$('#cboxLoadedContent');
+
+		// center the channels vertically (desktop only)
+		if(!j$('body').hasClass('mobile')){
+			j$('.jChannelSection',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.jChannelSection',modal).height())/2;
+			});
+			j$('.email_signup',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.email_signup',modal).outerHeight())/2;
+			});
+			// need to explicitly set the height for scaling the "OR"
+			j$('.signin_wrapper', modal).height(j$('.signin_wrapper', modal).height()); // gave in and added to css
+		}
+
+		j$(".jForgotPassword",modal).click(function(e) {
+			e.preventDefault();
+			j$(document).trigger('forgotPassword', {saveState:true});
+		});
+
+		j$(".jRegisteredEmailLogin", modal).click(function() {
+			j$(document).trigger('loginModal', j$.extend({},data,{saveState:true}));
+		});
+
+		j$('.jLinkSMAuth', modal).click(function() {
+			TVAPP.modal.open("register_modal_email", {}, data);
+		});
+
+	},
+
+	saveSessionLocale: function(sessionID, closeState){
+		j$.ajax({
+			url: '/ajax/user/update-guest-session-locale',
+			type: 'POST',
+			dataType: 'json',
+			data : { locale_id: sessionID , close_locale_notification : closeState },
+			success: function(result){
+				if( result.Status ==='OK' ){
+					j$.log('sesssion locale has been set to ' + result.UserMessage);
+					location.reload();
+				}
+			},
+			error: function(){
+				j$.log('session locale has not been set.');
+			}
+		});
+	},
+
+	validation: function(){
+		// first name last name validations
+		j$.validator.addMethod("allowedChar", function(value, element){
+			var patt = new RegExp('[\\\\!\"#$%&()*+,/:;<=>?@\\[\\]^_{|}~]+');
+			return !patt.test(value) && !(/(www|http|https)/.test(value));	
+		});
+		//email validations
+		j$.validator.addMethod("emailCheck", function(value, element, param){
+			return value.match(new RegExp("^" + param + "$"));
+		});
+	},
+	
+	focusInvalid: function(validator) {
+		if( validator.settings.focusInvalid) {
+			var errorElement = validator.errorList[0].element;
+			if(j$(errorElement).hasClass('jChosen') || j$(errorElement).parent().has('.jChosen').length > 0) {
+				try {
+					var lastActiveElement = j$(validator.findLastActive() || validator.errorList.length && validator.errorList[0].element || []);
+					lastActiveElement.parent().find('.chzn-search input').focus();
+				} catch(e) {
+					
+				}
+			}
+			else {
+				validator.focusInvalid();
+			}
+		}
+	},
+	
+	registerSubmit: function(event, data) {
+		event.preventDefault();
+
+		var jRegisterForm = j$('#cboxLoadedContent form:first');
+		j$(document).trigger("formSubmitted", {form: jRegisterForm});
+		TVAPP.currForm.id = j$(jRegisterForm).attr("id");
+
+		if (j$("input#submitted_password", jRegisterForm).val() != "") { // If form has been validated on front-end
+			j$("input[name='password_typed'], input[name='confirm_password']", jRegisterForm).val(j$("input#submitted_password", jRegisterForm).val());
+		}
+		TVAPP.user.validation();
+		// Add validation plugin to form.
+		var validator = jRegisterForm.validate({
+			rules: {
+				"User.first_name": {required: true, allowedChar: true},
+				"User.last_name": {required: true, allowedChar: true},
+				"User.email": {required: true, email: true, emailCheck: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}"},
+				"password_typed": {required: true, passwordStrengthTray: true},
+				"confirm_password": {equalTo: "#password_typed", required: true},
+				"User.locale_id": {required:true},
+				"User.usr_client.relationship_id": {required: true},
+				"User.usr_client.preferred_job_category_ids": {required: true},
+				"User.usr_client.preferred_job_location_ids": {required: true},
+				"User.usr_client.preferred_company_ids": {required: true},
+				"User.employee_id": {required: true},
+				"terms-conditions": {required: true}
+			},
+			messages: {
+				"User.first_name" : {
+					required: TVAPP.smDict("FieldError.NoFirstName"),
+					allowedChar: TVAPP.smDict("FieldError.CorrectYourInformation")
+				},
+				"User.last_name" : {
+					required: TVAPP.smDict("FieldError.NoLastName"),
+					allowedChar: TVAPP.smDict("FieldError.CorrectYourInformation")
+				},
+				"User.email": TVAPP.smDict("FieldError.Register.InvalidEmail"),
+				"password_typed": {required: TVAPP.smDict("FieldError.Register.NoPassword"), passwordStrengthTray: TVAPP.smDict("FieldError.Register.NoPassword")},
+				"confirm_password": TVAPP.smDict("FieldError.Register.NoConfirmPassword"),
+				"User.locale_id": TVAPP.smDict("FieldError.Register.NoLocale"),
+				"User.usr_client.relationship_id": TVAPP.smDict("FieldError.Register.NoRelationshipType"),
+				"User.usr_client.preferred_job_category_ids": TVAPP.smDict("FieldError.Register.NoDepartment"),
+				"User.usr_client.preferred_job_location_ids": TVAPP.smDict("FieldError.Register.NoLocation"),
+				"User.usr_client.preferred_company_ids": TVAPP.smDict("FieldError.Register.NoCompany"),
+				"User.employee_id": TVAPP.smDict("FieldError.NoEmployeeID"),
+				"terms-conditions": TVAPP.smDict("FieldError.default_required")
+			},
+			errorElement:"div",
+			invalidHandler: function() {
+				j$("input[placeholder]", jRegisterForm).placeholder();
+			}
+		});
+
+		// Workaround for Chrome which doesn't remove the error upon selecting an option
+		j$(".chrome select", jRegisterForm).each(function() {
+			j$(this).bind("change keyup", function() {
+			    jRegisterForm.validate().element(this);
+			});
+		});
+		if (jRegisterForm.valid()) {
+			TVAPP.currForm.validated = true;
+			TVAPP.user.prepRegisterFormForSubmit(jRegisterForm, {action: event.currentTarget});
+		}
+		else {
+			TVAPP.user.focusInvalid(validator);
+		}
+	},
+
+	prepRegisterFormForSubmit: function(theForm, data) {
+		j$(document).trigger("trackPage", { url: "ga/ajax/submit/"+j$(theForm).attr("id")});
+
+		TVAPP.modal.loadingStart();
+
+		if (j$("input[name='password_typed']", theForm).length) {
+			var word = j$("input[name='password_typed']", theForm).val();
+			j$("input#submitted_password", theForm).val(word);
+			//j$("input[name='User.usr_auth.password']", theForm).val(sha1Hash(word));
+			j$("input[name='User.usr_auth.password']", theForm).val(word);
+			TVAPP.changeToXXX(j$("input[name='password_typed'], input[name='confirm_password']", theForm));
+		}
+
+		if (j$("input#locations_interests", theForm).length) {
+			j$("input#locations_interests").remove();
+		}
+
+		var callback_functions = '&callback_success=TVAPP.user.processRegistration&callback_error=TVAPP.user.registerError&callback_form_id=' + j$(theForm).attr("id");
+
+		j$.ajax({
+			type: 'POST',
+			url: TVAPP.guid(j$(theForm).attr('action')),
+			data: j$(theForm).serialize() + callback_functions,
+			dataType: 'jsonp',
+			jsonp : "callback",
+			complete: function() {
+				TVAPP.modal.loadingStop();
+			},
+			error: function(xhr, textStatus, error) {
+				if(xhr.status==403){
+					if(typeof data != "undefined" && data.hasOwnProperty("action") && typeof data.action != "undefined"){
+						j$('body').modal({ text: TVAPP.smDict('FieldError.CorrectYourInformation') }, {action: data.action});
+					}else{
+						j$('body').modal({ text: TVAPP.smDict('FieldError.CorrectYourInformation') });
+					}
+					 	j$.log(error);
+				}	
+ 			}
+		});
+
+	},
+
+	processRegistration: function(result) {
+		if (result.Status == "OK") {
+			var success_msg = result.UserMessage;
+
+			/* TEC-22437 For Signup for jobalert form submit we get isUserExist in response param */
+			var isUserExist,
+			isSignUpForJobAlerts = false;
+
+			var isUserFromSignUpWithEmail = "";
+			if(result.Result) {
+                isUserFromSignUpWithEmail = result.Result.isUserFromSignUpWithEmail;
+                TVAPP.user.setIsFromSignUpWithEmail(isUserFromSignUpWithEmail);
+			}
+
+			if (typeof result.Result !== 'undefined' && typeof result.Result.isUserExist !== 'undefined') {
+				isSignUpForJobAlerts = true;
+				isUserExist = result.Result.isUserExist;
+			}
+
+			if (success_msg && success_msg != "") {
+				j$("body").modal({
+					"text": success_msg,
+					"onClose": function() {
+
+						/* TEC-22437 isUserExist:10 - User Exist, 20 - New User, 
+						 * Don't Signin the user, close the modal for existing user after Signup for Job alert registration successful */
+						if (typeof TVAPP.property.user_info.is_guest !== 'undefined' && TVAPP.property.user_info.is_guest === 'true' && isSignUpForJobAlerts && typeof isUserExist !== 'undefined' && isUserExist == 10 ) {
+							if (j$('button.jCloseModal').length) {
+								j$('button.jCloseModal').trigger('click');
+							}
+						} else {
+							j$(document).trigger("userRegistered");
+						}
+					}
+				});
+			}
+		}
+	},
+
+	registerError: function(result) {
+		j$.log('registration error');
+		var xhr_sim = { "status": result.ActualErrorCode, "responseText": JSON.stringify(result) };
+		if (xhr_sim.status == 400) {
+			var result = JSON.parse(xhr_sim.responseText);
+			if (result.Errors['User.email']) {
+				j$('body').modal({ 'text': result.Errors['User.email'] });
+			} else if (result.Errors['GENERIC_ERROR_STRING']) {
+				j$('body').modal({ 'text': result.Errors['GENERIC_ERROR_STRING'] });
+			}
+		} else {
+			//TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+			TVAPP.masterErrorHandler(xhr_sim, '', result.Errors.GENERIC_ERROR_STRING, null, {'onClose': function() {}});
+		}
+	},
+
+	bindDetermineRelationship: function() {
+		var modal = j$('#cboxLoadedContent');
+		j$(".jDetermineRelationship", modal).click(function() {
+			jRegisterForm = j$(this).parents("form:first");
+			var relationshipId = j$("input[name='User.usr_client.relationship_id']:checked", jRegisterForm).val();
+
+			j$(".jActiveRelationship input",jRegisterForm).attr("disabled","disabled");
+			j$(".jActiveRelationship button").attr("disabled", "disabled");
+			j$(".jActiveRelationship select",jRegisterForm).attr("disabled","disabled").trigger("liszt:updated");
+			j$(".jActiveRelationship", jRegisterForm).removeClass("jActiveRelationship").addClass('inactive');
+
+			j$(".jDetermineRelationship_" + relationshipId, jRegisterForm).addClass("jActiveRelationship").removeClass('inactive');
+			j$(".jActiveRelationship input",jRegisterForm).removeAttr("disabled");
+			j$(".jActiveRelationship button").removeAttr("disabled");
+			j$(".jActiveRelationship select",jRegisterForm).removeAttr("disabled").trigger("liszt:updated");
+
+			if (j$(this).hasClass("jHasOptions")) {
+				if (!j$(this).parents("li:first").hasClass("selected")) {
+					j$(".selected", ".radio_buttons").removeClass("selected");
+					j$(this).parents("li:first").addClass("selected");
+				}
+			} else {
+				j$(".selected").removeClass("selected");
+			}
+		});
+	},
+
+	init: function() {
+		j$(document).bind("contactsUpdated", this.handleContactsUpdated);
+		j$(document).bind("applyClicked", this.handleApplyClicked);
+		j$(document).bind("referFriendClicked", this.handleReferFriendClicked);
+		j$(document).bind("authorizeSM", this.handleAuthorizeSM);
+		j$(document).bind("channelAuthorized", this.handleChannelAuthorized);
+		j$(document).bind("referClicked", this.handleReferClicked);
+		j$(document).bind("registerClicked", this.handleRegisterClicked);
+		j$(document).bind("loginClicked", this.handleLoginClicked);
+		j$(document).bind("registerSubmitted", this.handleRegisterSubmitted);
+		j$(document).bind("userRegistered", this.handleUserRegistered);
+		j$(document).bind("trayClosed", this.handleTrayClosed);
+		j$(document).bind("sendJobClicked", this.handleSendJobClicked);
+		j$(document).bind("userInfoUpdated", this.handleUserInfoUpdated);
+		j$(document).bind("registerModal", this.handleRegisterModal);
+		j$(document).bind("register_modal_landing_init", this.handleRegisterModalInitialize);
+		j$(document).bind("register_modal_email_init", this.handleRegisterEmailInitialize);
+		j$(document).bind("register_modal_recruiter_init", this.handleRegisterEmailInitialize);
+		j$(document).bind("register_modal_finish_init", this.handleRegisterEmailInitialize);
+		j$(document).bind("login_modal_no_channels_init", this.handleLoginModalNoChannelsInitialize);
+
+		var userInfoInitial = JSON.stringify(TVAPP.property.user_info);
+		var likelyUserInfoInitial = JSON.stringify(TVAPP.property.likely_user_info);
+
+		if (userInfoInitial != "") {
+			
+			TVAPP.user.handleUpdateUserInfo(JSON.parse(userInfoInitial));
+
+			TVAPP.user.likelyUser.handleUpdateUserInfo(JSON.parse(likelyUserInfoInitial)); //initial likely user info
+		} else {
+			TVAPP.user.updateUserInfo();
+		}
+		TVAPP.user.updateContacts();
+	},
+
+	/* Public Methods */
+
+	getName: function() {
+		return TVAPP.user.props.userName;
+	},
+
+	getContacts: function() {
+		return TVAPP.user.props.contacts;
+	},
+
+	getFailedChannels: function() {
+		return TVAPP.user.props.failedChannels;
+	},
+
+	isLoadingContacts: function() {
+		return waitingForContacts;
+	},
+
+	likelyUser : {
+		me: this,
+		myData: {},
+		props: {
+			sessionID: "",
+			activity: "",
+			userName: "",
+			regStatus: "",
+			isGuest: "",
+			contacts: [],
+			channelInfo: {
+				facebook: {is_tethered: "no", is_authorized: "no"},
+				linkedin: {is_tethered: "no", is_authorized: "no"},
+				twitter:  {is_tethered: "no", is_authorized: "no"}
+			},
+			tetheredChannels: [],
+			authenticatedChannels: []
+		},
+
+		getUserInfo: function() {
+			TVAPP.user.likelyUser.props.userName = "Guest";
+			TVAPP.user.likelyUser.props.regStatus = "unregistered";
+			TVAPP.user.likelyUser.props.isGuest = true;
+		},
+
+		handleUpdateUserInfo: function(myData) {
+			TVAPP.user.likelyUser.props.tetheredChannels = [];
+			TVAPP.user.likelyUser.props.authenticatedChannels = [];
+
+			for (var i = 0; i < myData.channel_info.length; i++) {
+				var tmp = myData.channel_info[i];
+
+				var tmpObj = {
+					"is_tethered": tmp.is_tethered,
+					"is_authenticated": tmp.is_authenticated
+				};
+
+				if (tmpObj.is_tethered == "no") {
+					tmpObj.className = "untethered";
+				} else {
+					tmpObj.className = "tethered";
+					TVAPP.user.likelyUser.props.tetheredChannels.push(tmp.channel_short_name);
+				}
+
+				if (tmpObj.is_authenticated == "yes") {
+					TVAPP.user.likelyUser.props.authenticatedChannels.push(tmp.channel_short_name);
+				}
+
+				TVAPP.user.likelyUser.props.channelInfo[tmp.channel_short_name] = tmpObj;
+			};
+
+			TVAPP.user.likelyUser.props.userName = myData.active_user_name;
+			TVAPP.user.likelyUser.props.sessionID = myData.session_id;
+
+			j$.log("setRegStatusLikely: " + myData.registration_status);
+			TVAPP.user.likelyUser.setRegStatus(myData.registration_status);
+			TVAPP.user.likelyUser.setIsGuest(myData.is_guest);
+
+			TVAPP.property.referrer_code_prefix = myData.vanity_referrer_code_uri_prefix;
+
+			j$(document).trigger("likelyuserInfoUpdated", TVAPP.user.likelyUser.props);
+		},
+
+		setChannelStatus: function(channel, status) {
+			if (status == "authorized") {
+				TVAPP.user.likelyUser.props.channelInfo[channel].is_authorized = "yes";
+			}
+
+			if (channel == "facebook") {
+				j$(document).trigger("fbAuthorized", {step: "2"});
+			} else if (channel == "linkedin") {
+				j$(document).trigger("liAuthorized", {step: "2"});
+			} else if (channel == "twitter") {
+				j$(document).trigger("twAuthorized", {step: "2"}); //TODO:
+			}
+		},
+
+		setRegStatus: function(status) {
+			if (TVAPP.user.likelyUser.props.regStatus != status) {
+				TVAPP.user.likelyUser.props.regStatus = status;
+			}
+		},
+
+		setIsGuest: function(guest_status) {
+			if (TVAPP.user.likelyUser.props.isGuest != guest_status) {
+				TVAPP.user.likelyUser.props.isGuest = guest_status;
+			}
+		},
+
+		getTetheredChannels: function() {
+			j$.log("get likely tethered channels: " + JSON.stringify(TVAPP.user.likelyUser.props.tetheredChannels));
+			return TVAPP.user.likelyUser.props.tetheredChannels;
+		},
+
+		getAuthenticatedChannels: function() {
+			j$.log("get likely authenticated channels: " + JSON.stringify(TVAPP.user.likelyUser.props.authenticatedChannels));
+			return TVAPP.user.likelyUser.props.authenticatedChannels;
+		},
+
+		getRegStatus: function() {
+			return TVAPP.user.likelyUser.props.regStatus;
+		},
+
+		getIsGuest: function(guest_status) {
+			return TVAPP.user.likelyUser.props.isGuest;
+		},
+
+		init: function() {
+			TVAPP.user.likelyUser.updateUserInfo();
+		},
+
+		/* Public Methods */
+
+		getName: function() {
+			return TVAPP.user.likelyUser.props.userName;
+		}
+	}
+};

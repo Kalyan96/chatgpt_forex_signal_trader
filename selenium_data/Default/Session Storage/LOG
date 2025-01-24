@@ -1,0 +1,81 @@
+2023/11/24-12:55:33.818 b4a8 Reusing MANIFEST C:\Users\Kalyan\PycharmProjects\mt4datatest\selenium_data\Default\Session Storage/MANIFEST-000001
+2023/11/24-12:55:33.829 b4a8 Recovering log #3
+2023/11/24-12:55:33.833 b4a8 Reusing old log C:\Users\Kalyan\PycharmProjects\mt4datatest\selenium_data\Default\Session Storage/000003.log 
+2023/11/24-20:09:18.447 b4a8 Level-0 table #5: started
+2023/11/24-20:09:18.452 b4a8 Level-0 table #5: 10405 bytes OK
+2023/11/24-20:09:18.454 b4a8 Delete type=0 #3
+2023/11/25-04:57:42.161 b4a8 Level-0 table #7: started
+2023/11/25-04:57:42.177 b4a8 Level-0 table #7: 9220 bytes OK
+2023/11/25-04:57:42.179 b4a8 Delete type=0 #4
+2023/11/25-13:15:05.232 b4a8 Level-0 table #9: started
+2023/11/25-13:15:05.236 b4a8 Level-0 table #9: 9151 bytes OK
+2023/11/25-13:15:05.239 b4a8 Delete type=0 #6
+2023/11/25-22:04:23.642 b4a8 Level-0 table #11: started
+2023/11/25-22:04:23.647 b4a8 Level-0 table #11: 9136 bytes OK
+2023/11/25-22:04:23.649 b4a8 Delete type=0 #8
+2023/11/26-05:59:23.701 b4a8 Level-0 table #13: started
+2023/11/26-05:59:23.718 b4a8 Level-0 table #13: 9232 bytes OK
+2023/11/26-05:59:23.720 b4a8 Delete type=0 #10
+2023/11/26-13:54:00.235 b4a8 Level-0 table #15: started
+2023/11/26-13:54:00.239 b4a8 Level-0 table #15: 9201 bytes OK
+2023/11/26-13:54:00.241 b4a8 Delete type=0 #12
+2023/11/26-13:54:00.242 b4a8 Compacting 4@0 + 1@1 files
+2023/11/26-13:54:00.247 b4a8 Generated table #16@0: 9 keys, 477 bytes
+2023/11/26-13:54:00.247 b4a8 Compacted 4@0 + 1@1 files => 477 bytes
+2023/11/26-13:54:00.248 b4a8 compacted to: files[ 0 1 1 0 0 0 0 ]
+2023/11/26-13:54:00.250 b4a8 Delete type=2 #7
+2023/11/26-13:54:00.251 b4a8 Delete type=2 #9
+2023/11/26-13:54:00.252 b4a8 Delete type=2 #11
+2023/11/26-13:54:00.253 b4a8 Delete type=2 #13
+2023/11/26-13:54:00.253 b4a8 Delete type=2 #15
+2023/11/26-21:46:26.421 b4a8 Level-0 table #18: started
+2023/11/26-21:46:26.426 b4a8 Level-0 table #18: 9169 bytes OK
+2023/11/26-21:46:26.428 b4a8 Delete type=0 #14
+2023/11/27-05:34:28.014 b4a8 Level-0 table #20: started
+2023/11/27-05:34:28.018 b4a8 Level-0 table #20: 9191 bytes OK
+2023/11/27-05:34:28.020 b4a8 Delete type=0 #17
+2023/11/27-13:24:11.728 b4a8 Level-0 table #22: started
+2023/11/27-13:24:11.744 b4a8 Level-0 table #22: 9261 bytes OK
+2023/11/27-13:24:11.746 b4a8 Delete type=0 #19
+2023/11/27-21:27:56.793 b4a8 Level-0 table #24: started
+2023/11/27-21:27:56.797 b4a8 Level-0 table #24: 9222 bytes OK
+2023/11/27-21:27:56.800 b4a8 Delete type=0 #21
+2023/11/27-21:27:56.800 b4a8 Compacting 4@0 + 1@1 files
+2023/11/27-21:27:56.805 b4a8 Generated table #25@0: 9 keys, 469 bytes
+2023/11/27-21:27:56.805 b4a8 Compacted 4@0 + 1@1 files => 469 bytes
+2023/11/27-21:27:56.806 b4a8 compacted to: files[ 0 1 1 0 0 0 0 ]
+2023/11/27-21:27:56.808 b4a8 Delete type=2 #16
+2023/11/27-21:27:56.809 b4a8 Delete type=2 #18
+2023/11/27-21:27:56.810 b4a8 Delete type=2 #20
+2023/11/27-21:27:56.810 b4a8 Delete type=2 #22
+2023/11/27-21:27:56.810 b4a8 Delete type=2 #24
+2023/11/28-05:26:26.677 b4a8 Level-0 table #27: started
+2023/11/28-05:26:26.682 b4a8 Level-0 table #27: 9230 bytes OK
+2023/11/28-05:26:26.684 b4a8 Delete type=0 #23
+2023/11/28-13:03:00.305 b4a8 Level-0 table #29: started
+2023/11/28-13:03:00.309 b4a8 Level-0 table #29: 9101 bytes OK
+2023/11/28-13:03:00.311 b4a8 Delete type=0 #26
+2023/11/28-20:52:17.939 b4a8 Level-0 table #31: started
+2023/11/28-20:52:17.943 b4a8 Level-0 table #31: 9171 bytes OK
+2023/11/28-20:52:17.945 b4a8 Delete type=0 #28
+2023/11/29-04:38:32.457 b4a8 Level-0 table #33: started
+2023/11/29-04:38:32.462 b4a8 Level-0 table #33: 9149 bytes OK
+2023/11/29-04:38:32.464 b4a8 Delete type=0 #30
+2023/11/29-04:38:32.465 b4a8 Compacting 4@0 + 1@1 files
+2023/11/29-04:38:32.471 b4a8 Generated table #34@0: 9 keys, 469 bytes
+2023/11/29-04:38:32.471 b4a8 Compacted 4@0 + 1@1 files => 469 bytes
+2023/11/29-04:38:32.472 b4a8 compacted to: files[ 0 1 1 0 0 0 0 ]
+2023/11/29-04:38:32.473 b4a8 Delete type=2 #25
+2023/11/29-04:38:32.474 b4a8 Delete type=2 #27
+2023/11/29-04:38:32.475 b4a8 Delete type=2 #29
+2023/11/29-04:38:32.475 b4a8 Delete type=2 #31
+2023/11/29-04:38:32.475 b4a8 Delete type=2 #33
+2023/11/29-12:35:20.758 b4a8 Level-0 table #36: started
+2023/11/29-12:35:20.762 b4a8 Level-0 table #36: 9193 bytes OK
+2023/11/29-12:35:20.764 b4a8 Delete type=0 #32
+2023/11/29-20:33:17.571 b4a8 Level-0 table #38: started
+2023/11/29-20:33:17.576 b4a8 Level-0 table #38: 9014 bytes OK
+2023/11/29-20:33:17.579 b4a8 Delete type=0 #35
+2023/11/30-04:42:10.287 b4a8 Level-0 table #40: started
+2023/11/30-04:42:10.295 b4a8 Level-0 table #40: 9225 bytes OK
+2023/11/30-04:42:10.299 b4a8 Delete type=0 #37

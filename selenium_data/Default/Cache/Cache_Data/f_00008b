@@ -1,0 +1,788 @@
+(function(j$) {
+	var handleApplyModal = function(e, data) {
+		data = data || {};
+		j$.extend(data, { mode: "apply"});
+
+		if(!TVAPP.isEmpty(data.template)) {
+
+			j$.log("Specified template exists and is: " + data.template);
+
+			/*-- If on mobile device (table/phone) do not show Legacy Taleo or Upload Resume apply.  Instead show email link apply --*/
+			if(j$.browser.mobile) {
+				if(data.template == "apply_modal_upload_resume" || data.template == "apply_modal_taleo") {
+					data.template = "apply_modal_email_link";
+				}
+			}
+			j$.extend(data, { context:"Job.id="+TVAPP.property.job.id });
+			TVAPP.modal.open(data.template, {}, data);
+
+		} else {
+			j$.log("No data.template, use content repo.");
+			TVAPP.modal.open('apply-modal-content', {}, j$.extend(data,{cache:true}));
+
+		}
+
+	};
+
+	var handleApplyModalInitialize = function (e, data) {
+		var deleteResumeSuccess = function() {
+			j$("#jUploadedResume").hide();
+			j$("#jResumeUploadButton").show();
+			j$('#jResumeUploadButton').removeClass('disabled');
+			j$('input[name="files[]"]').prop("disabled", false);
+			j$("#jResumeFileName").val("");
+			j$.colorbox.resize();
+		};
+
+		var deleteResume = function() {
+			j$.ajax({
+				url: '/ajax/delete-resume?'+TVAPP.property.cookie_prefix+'_SWF_SESSION_ID=' + TVAPP.property.user_info.session_id + '&Job.id=' + j$("input[name='Job.id']").val(),
+				dataType: 'json',
+				success: function(result, textStatus) {
+					if (result.Status == "OK") {
+						deleteResumeSuccess();
+					}
+				},
+				error: function(xhr, textStatus, error) {
+					if(xhr.status==400){
+						var result = JSON.parse(xhr.responseText);
+						if(result.Errors['User.email']) {
+							j$("body").modal({"text":result.Errors['User.email']});
+						} else if (result.Errors['GENERIC_ERROR_STRING']) {
+							j$("body").modal({"text":result.Errors['GENERIC_ERROR_STRING']});
+						}
+					} else {
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+					}
+				}
+			})
+		};
+
+		// IE11 doesnot support endswith
+		if (!String.prototype.endsWith) {
+			String.prototype.endsWith = function(search, this_len) {
+				if (this_len === undefined || this_len > this.length) {
+					this_len = this.length;
+				}
+				return this.substring(this_len - search.length, this_len) === search;
+			};
+		}
+
+		j$('#jResumeUpload').fileupload({
+			dataType: 'json',
+			singleFileUploads: true,
+			done: function (e, data) {
+				j$("#jResumeFileName + div.error").hide();
+				j$("#jResumeFileInput-queue").show();
+				j$.colorbox.resize();
+				document.title = TVAPP.property.docTitle; // ie8&9 upload ify bug fix
+			},
+			submit: function (e, data) {
+				var fd = new FormData();
+				var files = data.files[0];
+				fd.append('file', files);
+				j$.ajax({
+					url: '/ajax/upload-resume?'+TVAPP.property.cookie_prefix+'_SWF_SESSION_ID=' + TVAPP.property.user_info.session_id + '&Job.id=' + j$("input[name='Job.id']").val(),
+					type: 'post',
+					data: fd,
+					contentType: false,
+					processData: false,
+					dataType: 'json',
+					success: function(response){
+						if(response.Result.uploadstatus ==  200){
+							j$("#jUploadedResume").html( data.files[0].name ).append('<div class="jRemoveResume">&times;</div>').show();
+							j$(".jRemoveResume").click(function(){deleteResume()});
+							j$("#jResumeFileName").val( response.Result.resume_file_name );
+							j$("#jResumeFileId").val( response.Result.resume_id );
+							j$("#jResumeFileName + div.error").remove();
+							j$("#jResumeUploadButton").hide();
+							j$.colorbox.resize();
+						}
+						else if(response.Result.uploadstatus ==  300)
+						{
+							// Invalid Content Case
+							j$('body').modal({text: TVAPP.smDict('Error.JobApplyTaleoReferAFriend.InvalidContent') });
+							j$('#jResumeUploadButton').removeClass('disabled');
+							j$('input[name="files[]"]').prop("disabled", false);
+						}
+						else if(response.Result.uploadstatus ==  4)
+						{
+							j$('body').modal({text: TVAPP.smDict('Error.VirusScan.detection') });
+							j$('#jResumeUploadButton').removeClass('disabled');
+							j$('input[name="files[]"]').prop("disabled", false);
+						}
+						return false;
+					},
+					error: function(XMLHttpRequest, textStatus, errorThrown) {
+							j$('body').modal({text: TVAPP.smDict('Error.JobApplyTaleoReferAFriend.InvalidContent') });
+							j$('#jResumeUploadButton').removeClass('disabled');
+							j$('input[name="files[]"]').prop("disabled", false);
+					}
+				});
+			},
+			error: function (e, data){
+					j$('#jResumeUploadButton').removeClass('disabled');
+					j$('input[name="files[]"]').prop("disabled", false);
+			},
+			add: function (e, data)
+			{
+				var filename = data.files[0].name;
+				/*if(data.files[0].size/1000>500) {
+					j$('body').modal({text: TVAPP.smDict('Jobs.Search.Banner.Editor.Errors.size_limit_exceeded')});
+				}*/
+				if(filename.endsWith(".pdf")||filename.endsWith(".docx")||filename.endsWith(".doc")||
+					filename.endsWith(".rtf")||filename.endsWith(".txt")) {
+					j$('#jResumeUploadButton').addClass('disabled').after(element_spinner);
+					j$('input[name="files[]"]').prop("disabled", true);
+					data.upload();
+				}
+				else {
+					j$('body').modal({text: TVAPP.smDict('Error.JobApplyTaleoReferAFriend.InvalidContent') });
+				}
+			}
+		});
+
+		j$("textarea").keyup(function(){return TVAPP.isMaxLength(this);});
+		j$("#form_apply").apply();
+	};
+
+	var handleModalApplyRedirect = function(e,data) {
+		var modal = j$('#cboxLoadedContent');
+		modal.prepend('<div class="modal_title with_close"><h3 class="jModalTitle">'+TVAPP.smDict("Modal.ATS.title")+'</h3><div class="jCloseModal modal_close">&times;</div></div>');
+		j$('.jCloseModal', modal).click(function(){	TVAPP.modal.close();});
+		j$('.cboxIframe').css({height:data.iframeHeight}); // space at the top for the title
+	}
+
+	var handleGeneralCandidate = function(e, data) {
+		data = data || {};
+		j$.extend(data, { mode: "generalCandidate"});
+
+		// if user is (guest/partially logged in) open (registration/forced login) modal & set next
+		if (TVAPP.user.getIsGuest() == 'true' && data.type == 'referFriend') {
+			// set next action and redirect to register
+			j$.log('-> Redirect to register');
+			TVAPP.modal.proceed = false;
+			TVAPP.modal.nextAction = function() { j$(document).trigger('generalCandidate',data); };
+			j$(document).bind("userInfoUpdated.modal.generalCandidate", function() {
+				if(TVAPP.user.getRegStatus() != "unregistered") {
+					j$.log('<- Reattempt General Candidate');
+					TVAPP.modal.proceed = true;
+					TVAPP.modal.close();
+					j$(document).unbind('.generalCandidate');
+				}
+				else {
+					j$.log('User Updated, not yet registered');
+				}
+			});
+			j$(document).trigger('registerModal', data);
+		// else load general candidate modal
+		} else {
+			var template = data.type == 'referFriend' ? 'general_candidate_refer_friend_modal' : 'general_candidate_modal';
+			TVAPP.modal.open(template, {}, data);
+		}
+	};
+
+	j$(document).bind("applyModal", handleApplyModal);
+	j$(document).bind('apply-modal-content_init', handleApplyModalInitialize);
+	j$(document).bind('modal_apply_redirect_init', handleModalApplyRedirect);
+	//Handle all standard apply modals
+	j$(document).bind('apply_modal_taleo_init', handleApplyModalInitialize);
+	j$(document).bind('apply_modal_taleo_direct_1.8_init', handleApplyModalInitialize);
+    j$(document).bind('apply_modal_taleo_direct_1.9_init', handleApplyModalInitialize);
+    j$(document).bind('apply_modal_ats_init', handleApplyModalInitialize);
+	j$(document).bind('apply_modal_upload_resume_init', handleApplyModalInitialize);
+	j$(document).bind('apply_modal_email_link_init', handleApplyModalInitialize);
+	//Handle general candidate flow
+	j$(document).bind('generalCandidate', handleGeneralCandidate);
+	j$(document).bind('general_candidate_modal_init', handleApplyModalInitialize);
+	j$(document).bind('general_candidate_refer_friend_modal_init', handleApplyModalInitialize);
+
+	var handleReferFriendApply = function(e, data){
+		data = data || {};
+		j$.extend(data, { mode:"referFriendApply" });
+		// if user is guest open registration modal & set next
+		if (TVAPP.user.getIsGuest() == 'true') {
+			// set next action and redirect to register
+			j$.log('-> Redirect to register');
+			TVAPP.modal.proceed = false;
+			TVAPP.modal.nextAction = function() { j$(document).trigger('referFriendApply',data); };
+			j$(document).bind("userInfoUpdated.modal.referFriend", function() {
+				if(TVAPP.user.getRegStatus() != "unregistered") {
+					j$.log('<- Reattempt Refer Friend');
+					TVAPP.modal.proceed = true;
+					TVAPP.modal.close();
+					j$(document).unbind('.referFriend');
+				}
+				else {
+					j$.log('User Updated, not yet registered');
+				}
+			});
+			j$(document).trigger('registerModal', data);
+		// else load refer friend apply modal
+		} else {
+			TVAPP.modal.open('apply-refer-friend-content', {}, j$.extend(data, {cache:true}));
+		}
+	};
+
+	j$(document).bind("referFriendApply", handleReferFriendApply);
+	j$(document).bind('apply-refer-friend-content_init', handleApplyModalInitialize); // use same init function as other apply modals
+
+	j$.fn.apply = function(){
+		this.each(function(){
+			var tv_fname, tv_lname, tv_email; // Variables that will hold applicant's first, last names, email address for pre-populating TBE apply form
+			var applicationObj = j$(this);
+			// first name last name validations
+			j$.validator.addMethod("allowedChar", function(value, element){
+				var patt = new RegExp('[\\\\!\"#$%&()*+,/:;<=>?@\\[\\]^_{|}~]+');
+				return !patt.test(value) && !(/(www|http|https)/.test(value));
+			});
+			//email validations
+			j$.validator.addMethod("emailCheck", function(value, element, param){
+				return value.match(new RegExp("^" + param + "$"));
+			});
+			/* Initialization (run immediately) */
+			var init = function(){
+				j$.log("Initializing Apply Plugin");
+				// ATS Form Submit
+				j$(".jApplySubmit", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						if (!checkPreventApplyAndDisplayMessage()) {
+							return false;
+						};
+						// Add loading animation
+						TVAPP.modal.loadingStart();
+						// If apply demo mode, load dummy ats redirect and avoid actual form submission
+						if (TVAPP.property.demo_mode) {
+							window.setTimeout(function(){
+								TVAPP.modal.open('apply_modal_ats_redirect_demo', {maxWidth:false});
+							}, 2000);
+							return false;
+						}
+						// Trackers
+						j$(document).trigger("trackEvent", { action: "Submit Application", label: j$(this).attr("class") });
+						j$(document).trigger("trackPage", { url: "/ga/ajax/apply/SubmitApplication"});
+						// Post Form
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid('/ajax/jobs/'+j$("input[name='Job.id']").val()+'/apply-ats-redirect'),
+							data: applicationObj.serializeObject(),
+							success: processApply,
+							dataType: 'json',
+							error: function(xhr, textStatus, error) {
+								TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+								TVAPP.modal.loadingStop();
+							},
+							complete: function() { }
+						});
+					}
+				});
+
+                function applyTaleoDirect() {
+                    j$('.jTaleoDirectGo').bind('click', function () {
+                        copyCheckboxValuesToModel();
+                        applicationObj.validate({
+                            rules: {
+                            	"User.first_name": {required: true, allowedChar: true},
+                                "User.last_name": {required: true, allowedChar: true},
+                                "User.email": {required: true, email: true, emailCheck: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}"}
+                            },
+                            messages: {
+                            	"User.first_name" : {
+        							required: TVAPP.smDict("FieldError.NoFirstName"),
+        							allowedChar: TVAPP.smDict("FieldError.CorrectYourInformation")
+        						},
+        						"User.last_name" : {
+        							required: TVAPP.smDict("FieldError.NoLastName"),
+        							allowedChar: TVAPP.smDict("FieldError.CorrectYourInformation")
+        						},
+                                "User.email": TVAPP.smDict("FieldError.Register.InvalidEmail")
+                            },
+                            errorElement: "div",
+                            invalidHandler: function () {
+                                j$("input[placeholder]", applicationObj).placeholder();
+                            },
+                            ignore: ".ignore"
+                        });
+
+                        if (applicationObj.valid()) {
+                            if (!checkPreventApplyAndDisplayMessage()) {
+                                return false;
+                            }
+                            // add element spinner after 'Go' button and show it.
+                            j$('.jTaleoDirectGo').after(element_spinner);
+                        	element_spinner.show();
+
+                            j$.ajax({
+                                type: 'POST',
+                                url: '/ajax/action/taleo/integration/tee/checkemail',
+                                data: applicationObj.serializeObject(),
+                                success: function (response) {
+                                    var result = response.Result;
+                                    if (result.found) {
+                                        TVAPP.application.redirectToApplication(result.url);
+                                    } else {
+                                        expandModal();
+                                    }
+                                },
+                                dataType: 'json',
+                                error: function (xhr, textStatus, error) {
+                                	TVAPP.masterErrorHandler(xhr, textStatus, error, error, {
+                                    	'onClose': function() {
+                                    		if (j$(".jTaleoDirectGo").length) {
+                                    			j$(".jTaleoDirectGo").focus();
+                                    		}
+                                    	}
+                                    });
+                                },
+                                complete: function () {
+                                    //hide element spinner
+                                	element_spinner.fadeOut(500, function() {
+                                		element_spinner.appendTo('body');
+                                	});
+                                }
+                            });
+                        }
+                    });
+
+                    j$('.jApplyTaleoDirect').bind('click', function () {
+                        j$(document).trigger("formSubmitted", {form: applicationObj});
+
+                        if (applicationObj.valid()) {
+                            TVAPP.modal.loadingStart();
+                            j$.ajax({
+                                type: 'POST',
+                                url: '/ajax/action/taleo/integration/tee/applywithoutteeacount',
+                                data: applicationObj.serializeObject(),
+                                success: function (response) {
+                                    TVAPP.application.redirectToApplication(response.Result.url);
+                                },
+                                dataType: 'json',
+                                error: function (xhr, textStatus, error) {
+                                    TVAPP.masterErrorHandler(xhr, textStatus, error, error);
+                                },
+                                complete: function () {
+                                    TVAPP.modal.loadingStop();
+                                }
+                            });
+                        }
+                    });
+
+                    function expandModal() {
+                        j$('input', j$("#form_apply")).removeClass('ignore');
+                        // hide 'Go' button, element spinner and enable name fields and show 'Start' button
+                        j$('.jTaleoDirectGo').hide();
+                        element_spinner.hide();
+                        // BUG 28859492 : Change for jquery upgrade -Start
+                        //j$('.jTaleoDirectNameHolder #form_apply_first_name').removeProp('disabled');                        ;
+                        j$('.jTaleoDirectNameHolder #form_apply_first_name').removeAttr("disabled");
+                       // j$('.jTaleoDirectNameHolder #form_apply_last_name').removeProp('disabled');
+                        j$('.jTaleoDirectNameHolder #form_apply_last_name').removeAttr("disabled");
+                        // BUG 28859492 : Change for jquery upgrade -End
+                        j$('.modal_actions .submit_finish', j$("#form_apply")).show();
+						j$('.modal_actions .submit_finish19', j$("#form_apply")).show();
+                        j$.colorbox.resize();
+                    }
+                }
+
+                applyTaleoDirect();
+
+				// Upload Resume Form Submit
+				j$(".jApplyUploadResume", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						if (!checkPreventApplyAndDisplayMessage()) {
+							return false;
+						};
+						// Add loading animation
+						TVAPP.modal.loadingStart();
+						// Trackers
+						j$(document).trigger("trackEvent", { action: "Submit Application", label: j$(this).attr("class") });
+						j$(document).trigger("trackPage", { url: "/ga/ajax/apply/SubmitApplication"});
+						// Post Form
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid('/ajax/jobs/'+j$("input[name='Job.id']").val()+'/apply-upload-resume'),
+							data: applicationObj.serializeObject(),
+							success: processApply,
+							dataType: 'json',
+							error: function(xhr, textStatus, error) { TVAPP.masterErrorHandler(xhr, textStatus, error, null); },
+							complete: function() { TVAPP.modal.loadingStop(); }
+						});
+					}
+				});
+				// Taleo Form Submit
+				j$(".jApplyTaleo", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						if (!checkPreventApplyAndDisplayMessage()) {
+							return false;
+						};
+						// Add loading animation
+						TVAPP.modal.loadingStart({options:{left:150}});
+						j$('.modal_spinner').prepend('<div class="apply_taleo_processing font_nav">'+TVAPP.smDict("Apply.Modal.connecting_msg")+'</div>');
+						// Trackers
+						j$(document).trigger("trackEvent", {action: "Submit Application via Taleo", label: j$(this).attr("class")});
+						j$(document).trigger("trackPage", {url: "/ga/ajax/apply/SubmitApplicationViaTaleo"});
+						// Post Form
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid('/ajax/jobs/'+j$("input[name='Job.id']").val()+'/apply-taleo'),
+							data: applicationObj.serializeObject(),
+							success: processApply,
+							dataType: 'json',
+							error: function(xhr, textStatus, error) { TVAPP.masterErrorHandler(xhr, textStatus, error, null); },
+							complete: function() { TVAPP.modal.loadingStop(); }
+						});
+					}
+				});
+				// Refer Friend Form Submit
+				j$(".jReferFriend", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						TVAPP.modal.loadingStart();
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid('/ajax/jobs/'+j$("input[name='Job.id']").val()+'/apply-refer-a-friend'),
+							data: applicationObj.serializeObject(),
+							success: processApply,
+							dataType: 'json',
+							error: function(xhr, textStatus, error) { TVAPP.masterErrorHandler(xhr, textStatus, error, null); },
+							complete: function() { TVAPP.modal.loadingStop(); }
+						});
+					}
+				});
+				// Refer Friend Taleo Form Submit
+				j$(".jReferFriendTee", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						TVAPP.modal.loadingStart();
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid('/ajax/jobs/'+j$("input[name='Job.id']").val()+'/apply-refer-a-friend-taleo'),
+							data: applicationObj.serializeObject(),
+							success: function(result) {
+							   if(result.Result.applicant_no_referral_flg == '10'){
+										TVAPP.modal.open("apply_modal_refer_friend_tee_endorse_resume_exists",{},{context:'link='+result.Result.endorsement_link+'&name='+encodeURIComponent(result.Result.applicant_first_name)});
+							   } else {
+							   			TVAPP.modal.open("apply_modal_refer_friend_tee_endorse",{},{context:'link='+result.Result.endorsement_link+'&name='+result.Result.applicant_first_name});
+							   }
+							},
+							dataType: 'json',
+							error: function(xhr, textStatus, error) { TVAPP.masterErrorHandler(xhr, textStatus, error, null); },
+							complete: function() { TVAPP.modal.loadingStop(); }
+						});
+					}
+				});
+
+				// Apply Email Link
+				j$(".jApplyEmailSubmit", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						if (!checkPreventApplyAndDisplayMessage()) {
+							return false;
+						};
+						// Add loading animation
+						TVAPP.modal.loadingStart();
+						// Trackers
+						j$(document).trigger("trackEvent", { action: "Submit Application", label: j$(this).attr("class") });
+						j$(document).trigger("trackPage", { url: "/ga/ajax/apply/SubmitApplication"});
+						// Post Form
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid(j$(applicationObj).attr("action")),
+							data: applicationObj.serializeObject(),
+							success: processApply,
+							dataType: 'json',
+							error: function(xhr, textStatus, error) {
+								TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+								TVAPP.modal.loadingStop();
+							},
+							complete: function() { }
+						});
+					}
+				});
+
+				// General Candidate
+				j$(".jGeneralReferFriendTee", applicationObj).bind("click", function(event) {
+					event.preventDefault();
+					event.stopPropagation();
+					processForm(applicationObj);
+					if (applicationObj.valid()) {
+						TVAPP.modal.loadingStart();
+						j$.ajax({
+							type: 'POST',
+							url: TVAPP.guid(applicationObj.attr('action')),
+							data: applicationObj.serializeObject(),
+							success: function(result) {
+								TVAPP.modal.loadingStop();
+								// this path is for employees who upload friends resume
+								if(result.Result.endorsement_link) {
+									TVAPP.modal.open("apply_modal_refer_friend_tee_endorse",{},{context:'link='+result.Result.endorsement_link+'&name='+encodeURIComponent(result.Result.applicant_first_name)});
+									return;
+								// this path is for candidates who self submit
+								} else {
+									// Partially log in the user for TC registration or RememberMe
+				                    if (j$("input[name='usr_rcommunity.receive_notification_id']").val() == '10' || j$('input[name="rememberMe"]').is(':checked')) {
+										j$(document).trigger("userRegistered");
+									}
+									TVAPP.modal.close(true);
+									if (result.Result.success_message && result.Result.success_message != "") {
+										j$("body").modal({ "text": result.Result.success_message });
+									}
+								}
+							},
+							dataType: 'json',
+							error: function(xhr, textStatus, error) {
+								TVAPP.modal.loadingStop();
+								TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+							}
+						});
+					}
+				});
+
+
+				// Link form submission to click
+				j$('#form_apply').submit(function(event) {
+					event.preventDefault();
+					if (j$(".jApplySubmit", applicationObj).length) {
+						j$(".jApplySubmit", applicationObj).click();
+					} else if (j$(".jApplyUploadResume", applicationObj).length) {
+						j$(".jApplyUploadResume", applicationObj).click();
+					} else if (j$(".jApplyTaleo", applicationObj).length) {
+						j$(".jApplyTaleo", applicationObj).click();
+					} else if (j$(".jReferFriend", applicationObj).length) {
+						j$(".jReferFriend", applicationObj).click();
+					} else if (j$('.jGeneralCandidate', applicationObj).length) {
+						j$('.jGeneralCandidate', applicationObj).click();
+					}
+				});
+			}();
+
+			function checkPreventApplyAndDisplayMessage() {
+				return TVAPP.application.validateEmployeeApplication(j$("#form_apply_email").val());
+			}
+
+
+            function copyCheckboxValuesToModel() {
+                if (j$(".jApplyJoinTC").length) {
+                    if (j$(".jApplyJoinTC:checked").length) {
+                        j$("input[name='usr_rcommunity.receive_notification_id']").val("10");
+                    } else {
+                        j$("input[name='usr_rcommunity.receive_notification_id']").val("20");
+                    }
+                }
+            }
+
+            function processForm(theForm) {
+				// remove any placeholders so that it doesn't get submitted.
+				j$("input[placeholder], textarea[placeholder]", theForm).each(function(){
+					if (j$(this).val() == j$(this).attr("placeholder")) {j$(this).val("")}
+				});
+
+				j$.validator.addMethod("phone", function(phone_number, element) {
+				    phone_number = phone_number.replace(/\s+/g, "");
+					return this.optional(element) || phone_number.length > 9 && phone_number.match(/^[0-9\.-]+()$/);
+				});
+
+				applicationObj.validate({
+					rules: {
+						"User.first_name": {required: true, allowedChar: true},
+                        "User.last_name": {required: true, allowedChar: true},
+                        "User.email": {required: true, email: true, emailCheck: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}"},
+						"User.phone" : {required:true, phone:true},
+						"resume_file_name" : "required"
+					},
+					messages: {
+						"User.first_name" : {
+							required: TVAPP.smDict("FieldError.NoFirstName"),
+							allowedChar: TVAPP.smDict("FieldError.CorrectYourInformation")
+						},
+						"User.last_name" : {
+							required: TVAPP.smDict("FieldError.NoLastName"),
+							allowedChar: TVAPP.smDict("FieldError.CorrectYourInformation")
+						},
+						"User.email" : TVAPP.smDict("FieldError.InvalidEmail"),
+						"User.phone" : TVAPP.smDict("FieldError.InvalidPhone"),
+						"resume_file_name" : TVAPP.smDict("FieldError.NoResume")
+					},
+					errorElement:"div"
+				});
+
+				tv_fname = j$("input[name='User.first_name']").val();
+				tv_lname = j$("input[name='User.last_name']").val();
+				tv_email = j$("#form_apply_email").val();
+
+				copyCheckboxValuesToModel();
+			}
+
+			function processApply(result) {
+				if(result.Status == "OK") {
+					if (TVAPP.property.fb && j$("input[name='usr_rcommunity.receive_notification_id']").val() == '10') {
+						j$('#ref_com_fb').hide();
+					}
+
+					// Partially log in the user for 'ats' or 'taleo_direct' apply, or TC registration
+                    var applyView = j$('.jJobDetailApplyView').val();
+                    if (applyView == 'ats' || applyView == "taleo_direct_1.8" || applyView == "taleo_direct_1.9" ||
+                        j$("input[name='usr_rcommunity.receive_notification_id']").val() == '10') {
+							j$(document).trigger("userRegistered");
+					}
+
+					var redirected = false;
+					var success_msg = result.UserMessage;
+
+					if (success_msg && success_msg != "") {
+						j$("body").modal({
+							"text": success_msg,
+							"onClose": function() { TVAPP.modal.close(true); }
+						});
+						j$.log("Application form submitted successfully");
+						return false;
+					}
+
+					var job_apply_url = result.Result.job_apply_url;
+						// Do not delete - for ease of testing only
+						//job_apply_url = "https://ch.tbe.taleo.net/CH07/ats/careers/apply.jsp?cws=1&rid=1454&org=SAVETHECHILDREN";
+						//job_apply_url = "https://cfn.taleo.net/careersection/2/jobdetail.ftl?job=439145&src=JB-10620";
+						//job_apply_url = "http://careers.peopleclick.com/careerscp/client_bmc/external/jobDetails.do?functionName=getJobDetail&jobPostId=23003&localeCode=en-us";
+						//job_apply_url = "https://entry.swissre.com/sap/bc/webdynpro/sap/hrrcf_a_startpage_ext_cand?sap-wd-configid=ZSRE01E&sap-client=100&sap-language=EN";
+						//job_apply_url = "https://candidates.credit-suisse.com/psp/plnrprd1/EMPLOYEE/HRMS/c/HRS_HRAM.HRS_CE.GBL?Page=HRS_CE_JOB_DTL&Action=A&JobOpeningId=1039563&SiteId=1&PostingSeq=1";
+
+					if ( job_apply_url ){//&& TVAPP.isEmpty(result.Result.internal_redirect_url) ) {
+						if (TVAPP.property.tbe_enabled==1) {
+							var tvsrc, tvref_email, tvref_name;
+							if (result.Result.referrer_email) {
+								tvsrc = "referral";
+								tvref_email = result.Result.referrer_email;
+								tvref_name = result.Result.referrer_first_name + "%20" + result.Result.referrer_last_name;
+							} else {
+								tvsrc = "direct";
+
+							}
+							var querystring = "&tv_fname="+ tv_fname +"&tv_lname="+ tv_lname +"&tv_email="+ tv_email +"&tvsrc="+ tvsrc +"&tvref_email="+ tvref_email +"&tvref_name="+ tvref_name;
+							job_apply_url += querystring;
+						}
+						if (TVAPP.property.fb != undefined) {
+							j$("body").modal({
+								"text": TVAPP.smDict("Apply.ATS.Facebook.redirect_message"),
+								"onClose": function() {
+									window.open(job_apply_url);
+									TVAPP.modal.close(true);
+									return false;
+								}
+							});
+							redirected = true;
+						} else if (applyView == "taleo_direct_1.8" || applyView == "taleo_direct_1.9") {
+                            var text = TVAPP.application.employeeEmailMatch(j$("#form_apply_email").val()) ?
+                                TVAPP.smDict('ApplyRedirect.msg') : TVAPP.smDict('Apply.TEE.redirect_message');
+                            j$("body").modal({
+								"text": text ,
+								"onClose": function() {
+									window.open(job_apply_url);
+									TVAPP.modal.close(true);
+									return false;
+								}
+							});
+							redirected = true;
+						} else {
+							var apply_data = JSON.parse(TVAPP.smDict("ApplyInModal.config"));
+							j$(apply_data.Result).each(function(){
+								if (job_apply_url.indexOf(this.url_pattern) >= 0) {
+									if (!this.modal || j$("body").hasClass("mobile")) {
+										if (this.frameset) {
+											window.location = "/ats?src="+job_apply_url+"&jobtitle="+encodeURIComponent(j$("h1.job_title").html());
+										} else {
+											window.location = job_apply_url;
+										}
+										redirected = true;
+										return false;
+									}
+									else {
+										TVAPP.modal.open('modal_apply_redirect', {width:"840px", innerWidth: this.width, innerHeight:this.height+44, maxWidth:false, scrolling:true}, {url: job_apply_url, iframeHeight:this.height});
+										redirected = true;
+										return false;
+									}//added width of 840px for apply redirect to taleo apply forms, may want to revisit this in the future - jh
+								}
+							});
+						}
+						if (!redirected) {
+							window.location = job_apply_url;
+						}
+					}
+
+				} else if (result.Errors['GENERIC_ERROR_STRING']) {
+					j$("body").modal({"text":result.Errors['GENERIC_ERROR_STRING']});
+				}
+			}
+
+		});
+
+		return this;
+	};
+
+})(jQuery);
+
+TVAPP.application = {
+    employeeEmailMatch: function (email) {
+        var val = false;
+        var client_domains = TVAPP.property.client_domains.split("|");
+        for (var i = 0; i < client_domains.length; i++) {
+            if (email.indexOf(client_domains[i]) > -1) {
+                val = true;
+                break;
+            }
+        }
+        return val;
+    },
+
+    validateEmployeeApplication: function (email) {
+        if (TVAPP.application.employeeEmailMatch(email) && TVAPP.property.job_apply_allow_employee == 0) {
+            j$("body").modal({"text": TVAPP.smDict("ApplyPrevent.msg")});
+            return false;
+        }
+        return true;
+    },
+
+    redirectToApplication: function(url) {
+        if (TVAPP.property.TEE.OpenNewWindow) {
+            TVAPP.modal.close()
+            TVAPP.user.updateUserInfo()
+            TVAPP.refreshUserStatus()
+            window.open(url)
+        } else {
+            window.location.href = url
+        }
+    }
+}
+//Initialize spinner and confirmation elements
+var element_spinner = j$('<div id="jElementSpinner" class="element_spinner"></div>').appendTo('body').spin({
+	lines: 12, // The number of lines to draw
+	length: 2, // The length of each line
+	width: 3, // The line thickness
+	radius: 5, // The radius of the inner circle
+	corners: 1, // Corner roundness (0..1)
+	rotate: 0, // The rotation offset
+	direction: 1, // 1: clockwise, -1: counterclockwise
+	color: '#6E6E6E', // #rgb or #rrggbb
+	speed: 1, // Rounds per second
+	trail: 87, // Afterglow percentage
+	shadow: false, // Whether to render a shadow
+	hwaccel: false, // Whether to use hardware acceleration
+	className: 'spinner', // The CSS class to assign to the spinner
+	zIndex: 99, // The z-index (defaults to 2000000000)
+	top: -1, // Top position relative to parent in px
+	left: 'auto' // Left position relative to parent in px
+}).hide();

@@ -1,0 +1,701 @@
+/*
+ *	INTRO
+ *	login.js handles all functions related to user login state (e.g. login handlers, social auth triggers and callbacks, and password
+ *	recovery handlers)
+ *
+ *	TRIGGER USER LOGIN:
+ *	(1) For email/password login use handleSmLogin(elem) or just use ".jSMLoginBtn" or "#jSMLoginBtn" on the button since those
+ *		are already bound with j$(document).on('click')
+ *		elem: (selector string or jQuery object) element within the login form (usually the submit button)
+ *	(2) For social channel login use TVAPP.login[j$(this).attr('data-channel')]({click_event:event})
+ *		This call is bound to a click event on an element with the 'data-channel' attribute.
+ *		*MUST be based on a click event to avoid pop-up blockers for the auth pop-up window*
+ *
+ */
+
+TVAPP.login = {
+	facebook: function(data) {
+		// define variables
+		data = data || {};
+		var defaults = { method: 'api', permissions: TVAPP.property.facebook_permissions, rerequest:false },
+			settings = j$.extend({},defaults,data),
+			FBperms = {};
+			permArray = settings.permissions.split(','),
+			granted = true;
+			
+		// handle API version of login
+		if(settings.method == "api") {
+			if(FB) {
+				FB.getLoginStatus(function(result) {
+					// user already authenticated
+					if(result.status=='connected') {
+						// check for requested permission
+						FB.api('/me/permissions',function(response) {
+							// convert facebook response into usable object
+							j$.each(response.data, function(i,perm) {
+								FBperms[perm.permission] = perm.status == 'granted' ? 1 : 0;
+							});
+							// compare each requested permission with the permission response object
+							j$.each(permArray, function(i,permRequest) {
+								if (FBperms[j$.trim(permRequest)]===1) { // if permission already granted
+									// do nothing
+								} else if (FBperms[j$.trim(permRequest)]===0) { // if permission already denied
+									granted=false;
+									settings.rerequest=true;
+								} else { // if permission not present
+									granted=false;
+								}
+							});
+							// if all permissions already granted
+							if (granted) {
+								// update user data
+								updateUser(result.authResponse, settings.success);
+								return true;
+							// if permission not all granted
+							} else {
+								doLogin(settings);
+							}
+						});
+					// user not already authenticated (or not logged in to facebook)
+					} else {
+						doLogin(settings);
+		 			}
+				});
+			} else {
+				TVAPP.facebook_loading();
+			}
+		// default to TV window pop-up auth
+		} else {
+			TVAPP.openWindow(settings.click_event);
+		}
+
+
+		function doLogin(settings) { // login using FB API
+			var options = {
+				scope:settings.permissions, 
+				return_scopes:true
+			};
+			if(settings.rerequest) j$.extend(options,{auth_type:'rerequest'});
+			FB.login(function(response) {
+				if (response.authResponse) {
+					var requested=settings.permissions.split(",");
+					var missing = [];
+					j$.each(requested, function(i,perm) {
+						if(response.authResponse.grantedScopes.indexOf(j$.trim(perm)) == -1) {
+							missing.push(perm);
+						}
+					});
+					//--> TODO handle denied permissions when required
+					updateUser(response.authResponse,settings.success);
+				} else {
+					if(settings.failure) settings.failure();
+				}
+ 			}, options);
+		}
+
+		function updateUser(authResponse, success) { // update user data
+			j$.ajax({
+					type: 'POST',
+					url: TVAPP.guid('/ajax/auth/facebook/access'),
+					data: authResponse,
+					success: function(result) {
+						TVAPP.oAuthReturnHandler("facebook");
+						if(success) success(); // activate callback
+					},
+				error: function(xhr, textStatus, error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});				
+		}
+
+
+	},
+	linkedin: function(data) {
+		// define variables
+		var data = data || {};
+			defaults = { method: 'default' },
+			settings = j$.extend({},defaults,data);
+		// handle API version of login
+		if(settings.method == "api") {
+			j$.log('API Method');
+			if (IN.User.isAuthorized()) {
+				j$.log('ALREADY AUTHORIZED');
+//-->			// UPDATE ACCESS TOKEN & USER OBJECT
+			} else {
+				IN.User.authorize(function() {
+//-->  				// UPDATE ACCESS TOKEN & USER OBJECT
+					j$.log('SUCCESSFUL CALLBACK');
+					TVAPP.oAuthReturnHandler("linkedin");
+					if(settings.success) settings.success(); // activate callback
+				});
+			}
+		// default to TV window pop-up auth
+		} else {
+			TVAPP.openWindow(settings.click_event);
+		}
+	},
+	twitter: function(data) {
+		// define variables
+		var data = data || {};
+		// twitter has no API, must use TV window pop-up auth
+		TVAPP.openWindow(data.click_event);
+	},
+	weibo: function(data) {
+		// define variables
+		var data = data || {};
+		// use TV window pop-up auth
+		TVAPP.openWindow(data.click_event);
+	},
+
+	// this function will determine how/when to close the modal depending on the user's path through the sign-in/sign-up process
+	bindRegister: function(data) {
+		data = data || {};
+		// run this function on the 'userInfoUpdated' event
+		j$(document).unbind(".register").bind("userInfoUpdated.register.modal", function() {
+
+			if(TVAPP.user.getIsFromSignUpWithEmail() == "1") {
+                j$.log('Login/Register Complete');
+                TVAPP.user.setIsFromSignUpWithEmail("0");
+                TVAPP.modal.close(true);
+                j$(document).unbind(".register");
+			}
+			// if user is 'unregistered, they must have signed in via social network that was not tethered to an account
+			else if(TVAPP.user.getRegStatus() == "unregistered") {
+				// progress to the 'finish' modal
+				j$.log('Social Login Complete - Not Registered');
+				if(data.mode == "register") TVAPP.modal.returnState.length=0;
+				TVAPP.modal.open("register_modal_finish", {}, data);
+			// if user is registered, close the modal only if they were in the registration flow and have no defined nextAction
+			} else if(TVAPP.modal.state != 'closed' && !TVAPP.modal.nextAction && data.mode == "register") {
+				j$.log('Login/Register Complete');
+				TVAPP.modal.close(true);
+				j$(document).unbind(".register");
+			// if user is registered but was not in registration flow simply remove this binding
+			} else {
+				j$(document).unbind(".register");
+			}
+		});
+	}
+
+};
+
+(function(j$) {
+	var theForm;
+	var first_time = true;
+
+	var showLoader = function(form) {
+		if(form.hasClass('modal_login_form')) {
+			TVAPP.modal.loadingStart({replace: j$('.modal_content')});
+		} else if (form.attr("id") == "reg_sm_login" || form.attr("id") == "bt_login_form") {
+			j$(".loading", form).css({"display": "block"})
+				.spin({
+					lines: 13, // The number of lines to draw
+					length: 2, // The length of each line
+					width: 3, // The line thickness
+					radius: 7, // The radius of the inner circle
+					corners: 1, // Corner roundness (0..1)
+					rotate: 0, // The rotation offset
+					direction: 1, // 1: clockwise, -1: counterclockwise
+					color: '#333', // #rgb or #rrggbb
+					speed: 1, // Rounds per second
+					trail: 91, // Afterglow percentage
+					shadow: false, // Whether to render a shadow
+					hwaccel: false, // Whether to use hardware acceleration
+					className: 'spinner', // The CSS class to assign to the spinner
+					zIndex: 2e9, // The z-index (defaults to 2000000000)
+					top: 'auto', // Top position relative to parent in px
+					left: 'auto' // Left position relative to parent in px
+				});
+
+			j$(".action_btns", form).css({"display": "none"});
+		} else if ( form.attr("id") == "form_login" || form.attr("id")== "content_sm_login"){
+			j$(".loading", form).show()
+				.spin({
+					lines: 13, // The number of lines to draw
+					length: 2, // The length of each line
+					width: 3, // The line thickness
+					radius: 7, // The radius of the inner circle
+					corners: 1, // Corner roundness (0..1)
+					rotate: 0, // The rotation offset
+					direction: 1, // 1: clockwise, -1: counterclockwise
+					color: '#333', // #rgb or #rrggbb
+					speed: 1, // Rounds per second
+					trail: 91, // Afterglow percentage
+					shadow: false, // Whether to render a shadow
+					hwaccel: false, // Whether to use hardware acceleration
+					className: 'spinner', // The CSS class to assign to the spinner
+					zIndex: 2e9, // The z-index (defaults to 2000000000)
+					top: 'auto', // Top position relative to parent in px
+					left: '0' // Left position relative to parent in px
+				});
+			j$(".action_btns", form).hide();
+		} else {
+			j$(".loading", form).show()
+				.spin({
+					lines: 13, // The number of lines to draw
+					length: 2, // The length of each line
+					width: 3, // The line thickness
+					radius: 7, // The radius of the inner circle
+					corners: 1, // Corner roundness (0..1)
+					rotate: 0, // The rotation offset
+					direction: 1, // 1: clockwise, -1: counterclockwise
+					color: '#333', // #rgb or #rrggbb
+					speed: 1, // Rounds per second
+					trail: 91, // Afterglow percentage
+					shadow: false, // Whether to render a shadow
+					hwaccel: false, // Whether to use hardware acceleration
+					className: 'spinner', // The CSS class to assign to the spinner
+					zIndex: 2e9, // The z-index (defaults to 2000000000)
+					top: 'auto', // Top position relative to parent in px
+					left: 'auto' // Left position relative to parent in px
+				});
+			j$(".action_btns", form).hide();
+		}
+	};
+
+	var hideLoader = function(form) {
+		if(form.hasClass('modal_login_form')) {
+			TVAPP.modal.loadingStop({replace: j$('.modal_content')});
+		} else {
+			j$("#overlay").insertBefore(".search_bubble");
+			j$(".loading", form).removeClass("login_loader").hide();
+			j$(".jTrayContent").css("overflow","hidden");
+			j$(".action_btns", form).show().css({"display": "block"});
+			j$("#overlay").removeClass("under_login_panel").hide();
+		}
+	};
+
+	// For Login submission (not used anywhere?)
+	var vloginProcess = function(result) {
+		j$.log("loginProcess, result from server was " + JSON.stringify( result ));
+		if (result.Status == "OK") {
+		 	document.cookie=TVAPP.property.cookie_prefix+'_SESSION_ID='+result.UserMessage+'; path=/;';
+
+		 	j$(document).trigger("trackPage", { url: "ga/ajax/login/Success"});
+
+		 	if (result.Result && result.Result.redirect) {
+		 		//window.location = result.Result.redirect_url;
+				j$(document).trigger("channelAuthorized", { "channel" : "selectminds" } );
+		 	} else {
+		 		// if we weren't reloading the page:
+				j$(document).trigger("channelAuthorized", { "channel" : "selectminds" } );
+		 	}
+			if (TVAPP.nextAction) {TVAPP.nextAction();}
+		} else {
+			//j$('#user_password_login').val(sha1Hash(j$('#user_password_login').val()));
+			j$('#user_password_login').val(j$('#user_password_login').val());
+			j$('#user_email').val(j$('#user_email_login').val());
+			j$('#user_password').val(j$('#user_password_login').val());
+			j$(document).trigger("finishRegistration");
+		}
+	};
+
+
+	var handleSmLogin = function(elem) {
+
+		var jLoginForm = j$(elem).parents("form:first");
+
+		var user_email = j$("input[name='User.email']", jLoginForm);
+
+		if(j$(user_email).val() == "smadmin") {
+			j$(user_email).val(j$(user_email).val() + "@test.selectminds.com");
+		}
+		else if(j$(user_email).val() == "tvapps") {
+			j$(user_email).val(j$(user_email).val() + "@selectminds.com");
+		}
+
+		var word = j$("input[name='User.usr_auth.password']", jLoginForm).val();
+		j$("input[name='password']", jLoginForm).val( word );
+		j$("input[name='sha1_password']", jLoginForm).val( sha1Hash(word) );
+		j$("input[name='email']", jLoginForm).val( j$("input[name='User.email']", jLoginForm).val() );
+
+		var validator = jLoginForm.validate({
+			rules: {
+				"User.email" : {required:true, email:true},
+				"User.usr_auth.password": "required"
+			},
+			messages: {
+				"User.email" : TVAPP.smDict('FieldError.InvalidEmail'),
+				"User.usr_auth.password": TVAPP.smDict('FieldError.NoPassword')
+			},
+			invalidHandler: function(form, validator) {
+				if (j$("input[name='User.usr_auth.password']").val()=="") {
+					j$("input.fakePwText").addClass("error");
+				}
+			},
+			errorElement:"div"
+		});
+
+		if (jLoginForm.valid()) {
+			showLoader(jLoginForm);
+			TVAPP.changeToXXX(j$("input[name='User.usr_auth.password']", jLoginForm));
+			var callback_functions = '&callback_success=loginSuccess&callback_error=loginError&callback_form_id=' + j$(jLoginForm).attr("id");
+			j$.ajax({
+			    type: 'POST',
+				url: TVAPP.guid(j$(jLoginForm).attr('action')),
+				data: j$(jLoginForm).serialize() + callback_functions,
+				dataType: 'jsonp',
+				jsonp : "callback"
+			});
+		}
+		else {
+			validator.focusInvalid();
+		}
+		return false;
+	};
+
+
+	var handleChannelAuthorized = function(e, data) {
+		if (TVAPP.user.getRegStatus() == "unregistered") {
+			TVAPP.inRegistrationProcess = true;
+		}
+	};
+
+	TVAPP.oAuthReturnHandler = function(channel) {
+		j$(document).trigger("trackPage", { url: "/ga/ajax/auth/"+channel+"/Success"});
+		j$(document).trigger("channelAuthorized", {"channel":channel});
+	};
+	TVAPP.handleChannelAuthCancelled = function(channel) {
+		j$.log('channelAuthCancelled: '+channel);
+		j$(document).trigger('channelAuthCancelled', {"channel":channel});
+	};
+	TVAPP.handleChannelAuthConflict = function(channel) {
+		j$.log('channelAuthConflict: '+channel);
+		j$(document).trigger('channelAuthConflict', {"channel":channel});
+	};
+
+	// header clickover form
+	j$(document).on("click", ".jSMLoginBtn, #jSMLoginBtn", function(event) { handleSmLogin(this); return false; });
+
+	// header clickover form
+	j$(document).on("click","#jForgotSubmit,.jForgotSubmit", function(e) {
+		e.preventDefault();
+		var jForgotForm = j$(this).parents("form:first");
+		var word = j$("input[name='User.usr_auth.password']", jForgotForm).val();
+		var currForm = jForgotForm.validate(
+			{
+				rules: {
+					"User.email" : {required:true, email:true}
+				},
+				messages: {
+					"User.email" : TVAPP.smDict("FieldError.InvalidEmail")
+				},
+				errorElement:"div"
+			}
+		);
+		if (j$(jForgotForm).valid()) {
+			showLoader(jForgotForm);
+
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid(jForgotForm.attr('action')),
+				data: jForgotForm.serialize(),
+				success: function(result) {
+					hideLoader(jForgotForm);
+					j$("body").modal({
+						"text":result.UserMessage,
+						"onClose": function() {
+							j$('input[name="User.email"]', jForgotForm).val('');
+							j$('#jPasswordCancel' , jForgotForm).trigger('click');
+						}
+					});
+				},
+				dataType: 'json',
+				error: function(xhr, textStatus, error) {
+					hideLoader(jForgotForm);
+					if(xhr.status==400) {
+						var result = JSON.parse(xhr.responseText);
+						if (result.Errors['GENERIC_ERROR_STRING']) {
+							j$("body").modal({"text":result.Errors['GENERIC_ERROR_STRING']});
+						}
+					} else {
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+					}
+				}
+			});
+		}
+		else{
+			currForm.focusInvalid();
+		}
+	});
+
+	// header clickover form
+	j$(document).on('keydown', '#jPanelPasswordForm input[type="text"]', function(e) {
+		if (e.which == 13) {
+			j$(this).blur();
+			j$("#jForgotSubmit").trigger("click");
+		}
+	});
+
+	// header clickover form
+	j$(document).on('keydown', '#jPanelLoginForm input[type="text"],#jPanelLoginForm input[type="password"]', function(e) {
+		if (e.which == 13) {
+			j$(this).blur();
+			handleSmLogin(this);
+		}
+	});
+
+	// forced login modal and forgot password modal
+	j$(document).on('keydown', '#forgot_password_form input[type="text"],#forgot_password_form input[type="password"]', function(e) {
+		if (e.which == 13) {
+			j$(this).blur();
+			j$(".jForgotSubmit").trigger("click");
+		}
+	});
+
+	// login timeout
+	j$('.jContentSMLogin input[type="text"],.jContentSMLogin input[type="password"]').bind("keydown", function(e) {
+		if (e.which == 13) {
+			j$(this).blur();
+			handleSmLogin(this);
+		}
+	});
+
+	// login timout
+	j$(".jRegisterBtn").click(function() {
+		j$(document).trigger("registerClicked");
+		return false;
+	});
+
+	// Only works for modal version (because it is the only path that hooks in)
+	var handleLoginModal = function(e,data) {
+		data = data || {};
+		TVAPP.login.bindRegister(data);
+		TVAPP.modal.open("login_modal", {}, data);
+	};
+
+	var handleLoginModalInitialize = function(e,data) {
+		var modal = j$('#cboxLoadedContent');
+		// center the channels vertically (desktop only)
+		if(!j$('body').hasClass('mobile')){
+			j$('.jChannelSection',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.jChannelSection',modal).height())/2;
+			});
+			j$('.email_signin',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.email_signin',modal).outerHeight())/2;
+			});
+			// need to explicitly set the height for scaling the "OR"
+			j$('.signin_wrapper', modal).height(j$('.signin_wrapper', modal).height()); // gave in and added to css
+		}
+
+		j$(".jChannelSection a").each(function() {
+			j$(this).click(function(event) {
+				event.preventDefault();
+				if (!j$(this).hasClass("disabled")) {
+					TVAPP.login[j$(this).attr('data-channel')](j$.extend({},data,{click_event: event}));
+				}
+			});
+			if (j$(this).hasClass("custom_tooltip") && !j$(this).hasClass("disabled")) {
+				j$(this).tooltip({
+					placement:'right',
+					title: TVAPP.smDict('SocialNetwork.TooltipText.'+j$(this).attr('id'))
+				});
+			}
+		});
+
+		j$('input[type="text"], input[type="password"]', modal).bind("keydown", function(e) {
+			if (e.which == 13) {
+				j$(this).blur();
+				handleSmLogin(this);
+			}
+		});
+/*
+		j$(".jSMLoginBtn", modal).click(function(event) {
+			// Call to login handler already bound via "on()" in login.js
+		});
+*/
+		j$(".jForgotPassword",modal).click(function(e) {
+			e.preventDefault();
+			j$(document).trigger('forgotPassword', {saveState:true});
+		});
+
+	};
+	var handleForceLogin = function(e,data) {
+		data = data || {};
+		TVAPP.modal.open("forced_login_modal", {}, j$.extend(data,{saveState: true}));
+	};
+
+	var handleForceLoginInitialize = function(e,data) {
+		var modal = j$('#cboxLoadedContent');
+		// center the channels vertically (desktop only)
+		if(!j$('body').hasClass('mobile')){
+			j$('.jChannelSection',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.jChannelSection',modal).height())/2;
+			});
+			j$('.email_signin',modal).css("margin-top", function() {
+				return (j$('.signin_wrapper', modal).height()-j$('.email_signin',modal).outerHeight())/2;
+			});
+			// need to explicitly set the height for scaling the "OR"
+			j$('.signin_wrapper', modal).height(j$('.signin_wrapper', modal).height()); // gave in and added to css
+		}
+
+		j$(".jChannelSection a").each(function() {
+			j$(this).click(function(event) {
+				event.preventDefault();
+				if (!j$(this).hasClass("disabled")) {
+					TVAPP.login[j$(this).attr('data-channel')]({click_event: event});
+				}
+			});
+			if (j$(this).hasClass("custom_tooltip") && !j$(this).hasClass("disabled")) {
+				j$(this).tooltip({
+					placement:'right',
+					title: TVAPP.smDict('SocialNetwork.TooltipText.'+j$(this).attr('id'))
+				});
+			}
+		});
+		j$('input[type="text"], input[type="password"]', modal).bind("keydown", function(e) {
+			if (e.which == 13) {
+				j$(this).blur();
+				handleSmLogin(this);
+			}
+		});
+/*
+		j$(".jSMLoginBtn", modal).click(function(event) {
+			// Call to login handler already bound via "on()" in login.js
+		});
+*/
+		j$(".jForgotPassword",modal).click(function(e) {
+			e.preventDefault();
+			j$(document).trigger('forgotPassword', {saveState:true});
+		});
+
+		if(j$('#force_forgot_password_form')) {
+			handleForgotPasswordInitialize();
+		}
+
+	};
+
+	var handleForgotPassword = function(e,data) {
+		data = data || {};
+		TVAPP.modal.open("forgot_password_modal", {}, data);
+	};
+
+	var handleForgotPasswordInitialize = function(e,data) {
+		var modal = j$('#cboxLoadedContent');
+		j$("#jForgotPasswordSubmit",modal).click(function(e) {
+			e.preventDefault();
+			var jForgotForm = j$(this).parents("form:first");
+			var currForm = jForgotForm.validate(
+				{
+					rules: {
+						"User.email" : {required:true, email:true}
+					},
+					messages: {
+						"User.email" : TVAPP.smDict("FieldError.InvalidEmail")
+					},
+					errorElement:"div"
+				}
+			);
+			if (j$(jForgotForm).valid()) {
+				TVAPP.modal.loadingStart({replace: j$('.modal_content')});
+				j$.ajax({
+					type: 'POST',
+					url: TVAPP.guid(jForgotForm.attr('action')),
+					data: jForgotForm.serialize(),
+					success: function(result) {
+						j$("body").modal({
+							"text":result.UserMessage,
+							"onClose": function() {
+								TVAPP.modal.close();
+							}
+						});
+					},
+					dataType: 'json',
+					error: function(xhr, textStatus, error) {
+						if(xhr.status==400) {
+							var result = JSON.parse(xhr.responseText);
+							if (result.Errors['GENERIC_ERROR_STRING']) {
+								j$("body").modal({"text":result.Errors['GENERIC_ERROR_STRING']});
+							}
+						} else {
+							TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+						}
+					},
+					complete: function() {
+						TVAPP.modal.loadingStop({replace: j$('.modal_content')});
+					}
+				});
+			}
+			else{
+				currForm.focusInvalid();
+			}
+		});
+
+	};
+
+	j$(document).bind("channelAuthorized", handleChannelAuthorized);
+	j$(document).bind("loginModal", handleLoginModal);
+	j$(document).bind("login_modal_init", handleLoginModalInitialize);
+	j$(document).bind("forceLogin", handleForceLogin);
+	j$(document).bind("forced_login_modal_init", handleForceLoginInitialize);
+	j$(document).bind("forgotPassword", handleForgotPassword);
+	j$(document).bind("forgot_password_modal_init", handleForgotPasswordInitialize);
+
+})(jQuery);
+
+
+	function isCsrfSafeMethod(method) {
+	   // these HTTP methods do not require CSRF protection
+		var result = (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method)) || (/^(get|head|options|trace)$/.test(method));
+		return result;
+	}
+// For Login submission
+function loginSuccess(result) {
+	//j$.log("loginProcess, result from server was " + JSON.stringify( result ));
+	if (result.Status == "OK") {
+	 	document.cookie=TVAPP.property.cookie_prefix+'_SESSION_ID='+result.UserMessage+'; path=/;';
+	 	
+	 	j$('#tsstoken').val(result.Result.token);
+	 	
+	 		j$.ajaxSetup({
+	 			beforeSend : function(jqXHR, settings) {
+	 					  	if (!isCsrfSafeMethod(settings.type) && !this.crossDomain) {
+	 					  	jqXHR.setRequestHeader('tss-token', j$('#tsstoken').val());
+	 					  	 }
+	 						}
+	 		});
+
+	 	j$(document).trigger("trackPage", { url: "ga/ajax/login/Success"});
+
+	 	if (result.Result && result.Result.redirect) {
+	 		//window.location = result.Result.redirect_url;
+			j$(document).trigger("channelAuthorized", { "channel" : "selectminds" } );
+	 	} else {
+	 		// if we weren't reloading the page:
+			j$(document).trigger("channelAuthorized", { "channel" : "selectminds" } );
+	 	}
+	 	if (TVAPP.nextAction) {TVAPP.nextAction();}
+	} else {
+		//j$('#user_password_login').val(sha1Hash(j$('#user_password_login').val()));
+		j$('#user_password_login').val(j$('#user_password_login').val());
+		j$('#user_email').val(j$('#user_email_login').val());
+		j$('#user_password').val(j$('#user_password_login').val());
+	}
+}
+
+var hideLoaderJsonP = function(form) {
+	if(form.hasClass('modal_login_form')) {
+		TVAPP.modal.loadingStop({replace: j$('.modal_content')});
+	} else {
+		j$("#overlay").insertBefore(".search_bubble");
+		j$(".loading", form).removeClass("login_loader").hide();
+		j$(".jTrayContent").css("overflow","hidden");
+		j$(".action_btns", form).show().css({"display": "block"});
+		j$("#overlay").removeClass("under_login_panel").hide();
+	}
+};
+
+
+// For Login errors
+function loginError(result) {
+
+	var jLoginForm = j$("#" + result.CallbackFormId);
+
+	hideLoaderJsonP(jLoginForm);
+
+	var xhr_sim = {"status":result.ActualErrorCode,"responseText":JSON.stringify( result )}
+
+	TVAPP.masterErrorHandler(xhr_sim, "", result.Errors.GENERIC_ERROR_STRING, null, {'onClose': function(){j$('input.error').focus()}});
+	j$("input[name='User.usr_auth.password']", jLoginForm).val("").blur();
+	//j$("input[name='User.email']", jLoginForm).val("").blur();
+}

@@ -1,0 +1,432 @@
+/*	
+ *	INTRO 
+ *	modal.js was written to incorporate colorbox modal in a flexible, extendable way and relies on jquery.colorbox.min.js
+ *	
+ *	OPEN A NEW MODAL:
+ *	(1) To open a modal use TVAPP.modal.open(content, options, data);
+ *		content: (string) Name of modal template to load
+ *		options: (object) Colorbox specific parameters to override
+ *		data: (object) Modal data to pass in to the modal initialize script or to activate special modal handlers
+ *			Common (optional) data parameters:
+ *				saveState:	(boolean) If true will save the existing modal state and return to it when the new modal is closed
+ *				url:		(string) If present will override the modal content to load the URL into an iframe within the modal
+ *				content:	(html as string) If present will override the modal content to load the included HTML within the modal.
+ *				cache:		(boolean) If true will load the content using contentRepository instead of ajax template.
+ *	(2) Every modal will trigger content+"_init" after loading, so bind to that event for initializing your modal interactions
+ *
+ *	OPEN A MODAL WITHIN A MODAL:
+ *	TVAPP.modal.open will check the data.saveState parameter and if true, will create/append a returnState object to allow
+ *	the modal to return to the previous state once the TVAPP.modal.close() is fired. This includes saving/returning form elements.
+ *	We also still have the original TVAPP.modal() function to open a simple dialog over top of the colorbox modal if all you
+ *	need is a user message.
+ *
+ *	CLOSE A MODAL:
+ *	Although colorbox handles closing with j$.colorbox.close(), please use TVAPP.modal.close() instead since it handles
+ *	additional options like returning to a saved state, initiating nextAction, and resetting modal variables on close.
+ *	If you wish to close a modal and ignore all saved states / next action use TVAPP.modal.close(true) which will force 
+ *	close immmediately and handle resetting the modal variables.
+ *
+ *	MODAL "LOADING-STATE":
+ *	A modal can be placed into a "loading state" which hides the modal contents and deactivates the modal escKey binding
+ *	by calling TVAPP.modal.loadingStart().  This requires a <form> wrapper around the part of the modal to hide (generally
+ *	everything but the modal_title).
+ *	Once the background process is complete you can either close the modal, open a new modal to replace it, or call
+ *	TVAPP.modal.loadingStop() to return the form and modal functionality.
+ *
+ *	CALLING FOR A MODAL BEFORE PROCEEDING WITH GIVEN ACTION (e.g. REGISTRATION):
+ *	Before calling your action:
+ *		(1) set TVAPP.modal.proceed = false
+ *		(2) define TVAPP.modal.nextAction as a function to run once your modal is complete.
+ *		(3) bind the following function to an existing event that will trigger once you know the criteria has changed
+ *			(registration uses "userInfoUpdated"):
+ *			function() {
+ *				TVAPP.modal.proceed = true;
+ *				TVAPP.modal.close();
+ *				j$(document).unbind(THISBINDING); <-- replace with your binding
+ *			}
+ *	"handleStatusUpdate" in referral.js is an excellent example of how to force a user to register/login before opening a modal
+ *
+ *	MODAL TEMPLATES:
+ *	Standard modal templates should have the following structure (copy and paste to create a new template)
+	<div class="MODAL_IDENTIFIER">
+		<div class="modal_title with_close">
+			<h3>##D.Apply.Modal.title##</h3>
+			<div class="jCloseModal modal_close">&times;</div>
+		</div>
+		<form>
+			<div class="modal_content">
+				YOUR_MODAL_CONTENT
+			</div>
+			<div class="modal_actions"><div class="action_button_holder"><div class="action_buttons">
+				<div class="submit_cancel jCloseModal">##D.global.cancel##</div>
+				<div class="generic_btn submit_finish">SUBMIT_TEXT</div>
+			</div></div></div>
+		</form> 
+	</div>
+ *
+ */
+//global variable
+var isEntypoModal; 
+TVAPP.modal = {
+	state : "closed",
+	returnState : new Array(),
+	nextAction : null,
+	cacheData : null,
+	cacheOptions : null,
+	proceed: true,
+	loading: false,
+	reset: function() {
+		TVAPP.modal.returnState.length=0;
+		TVAPP.modal.cacheData = null;
+		TVAPP.modal.cacheOptions = null;
+		TVAPP.modal.nextAction = null;
+		TVAPP.modal.proceed = true;
+		j$(document).unbind('.modal');
+	},
+	close: function(force) {
+		// if nextAction, and authorized to proceed, run it
+		if (TVAPP.modal.nextAction && TVAPP.modal.proceed && !force) {
+			j$.log('Modal Next Action');
+			TVAPP.modal.nextAction();
+			TVAPP.modal.nextAction = null;
+			TVAPP.modal.returnState.length=0;
+		// if returnState, load it into modal and set reset returnState to null
+		} else if(TVAPP.modal.returnState.length != 0 && !force) {
+			j$.log('Modal Return State');
+			var lastState = TVAPP.modal.returnState.pop();
+			TVAPP.modal.open(lastState.state, lastState.options, j$.extend({}, lastState.data, {returnState: true, data: lastState.formdata}));
+		// else close and reset modal
+		} else {
+			if(force) { j$.log('Forced Close');	}
+			else if(!TVAPP.modal.proceed) { j$.log('Not Permitted to Proceed'); }
+			else { j$.log('Modal Close'); }
+			TVAPP.modal.reset();
+			TVAPP.modal.state = "closed";
+			j$.colorbox.close();
+		}
+	},
+
+	open: function(content, options, data) {
+		data = data || {};
+		// loading delay loop
+		if(TVAPP.modal.loading) {
+			j$.log('modal loading');
+			j$(document).bind('modal_initialized.delay', function() {
+				TVAPP.modal.loading = false;
+				j$(document).unbind('modal_initialized.delay');
+				TVAPP.modal.open(content,options,data);
+			});
+			return false;
+		}
+		var modal = j$('#cboxLoadedContent');
+		// if data.clearStates, truncate TVAPP.modal.returnState
+		if (data.clearStates && TVAPP.modal.returnState.length!=0) {
+			TVAPP.modal.returnState.length=0;
+			delete data.clearStates;
+		}
+		// if data.saveState, store current content in TVAPP.modal.returnState
+		if (data.saveState && TVAPP.modal.state != 'closed') {
+			TVAPP.modal.returnState.push({
+				state:TVAPP.modal.state,
+				data:TVAPP.modal.cacheData,
+				options:TVAPP.modal.cacheOptions,
+				formdata:j$('form', modal).first().serializeArray()
+			});
+			delete data.saveState; // do not perpetuate
+		}
+		// update data and options cache for future reference
+		TVAPP.modal.cacheData = data;
+		TVAPP.modal.cacheOptions = options;
+
+		var defaults = {
+			initialWidth: 50,
+			initialHeight: 50,
+			opacity: 0.5,
+			maxWidth: 800,
+			overlayClose: false,
+			escKey: false,
+			returnFocus: true,
+			trapFocus: false,
+			scrolling: false,
+			fastIframe: true,
+			className: content,
+			open: true,
+			closeButton: false,
+			onComplete: function() {
+				j$('#colorbox, #cboxWrapper, #cboxLoadedContent').css({'overflow':'visible'});
+				TVAPP.modal.defaultModalInitialize(data);
+				delete data.returnState;
+				j$(document).trigger(content+"_init", data);
+
+				if(isEntypoModal != null){
+					if(j$(isEntypoModal).attr('class') != 'undefined' && j$(isEntypoModal).attr('class').length){
+						//land focus on link (ie., action performed)
+						var anchPoint = j$(isEntypoModal).prop('tagName')+'.'+j$(isEntypoModal).attr('class');
+						j$(anchPoint).focus();
+					}else{
+						//land focus on close icon
+						j$('button.jCloseModal').focus();
+					}
+					isEntypoModal = null;
+				}else{
+					if(j$('.jCloseModal.entypo').length && typeof data != "undefined" && data.hasOwnProperty("action") && typeof data.action != "undefined"){
+						isEntypoModal = data.action;
+					}
+					//land focus on close icon
+					j$('button.jCloseModal').focus();
+				}
+				TVAPP.modal.trapFocusInModal(true);
+			},
+			onCleanup: function() {
+				if(j$(".uploadify", modal).length) {
+					j$(".uploadify", modal).uploadify('destroy'); // must destroy uploadify to avoid errors in IE
+				}
+			},
+			onClosed: function() {
+				/* Once the modal is closed, set focus to the action element. This is to be executed only if the action parameter
+				 is being sent as part of data when modal is opened.*/ 
+				if(typeof data != "undefined" && data.hasOwnProperty("action") && typeof data.action != "undefined"){
+					j$(data.action).focus();
+				}
+				TVAPP.modal.trapFocusInModal(false);
+			}
+		};
+
+		// overwrite settings for mobile layout
+		if (j$("body").hasClass("mobile")) {
+			var initPosition = j$(window).scrollTop();
+			j$("html, body").animate({ scrollTop: 0 });
+			j$.extend(defaults, {
+				top:'0px',
+				left:'0px',
+				transition:'none',
+				opacity:0.5,
+				width:"100%",
+				reposition:false,
+				onComplete: function() {
+					TVAPP.modal.defaultModalInitialize(data);
+					j$('#cboxWrapper').animate({ scrollTop: 0 }); // always load new modal at top of content
+					delete data.returnState;
+					j$(document).trigger(content+"_init", data);
+					if(!j$("body").hasClass("jMenuOn")) {
+						j$("#body_wrapper").css({"overflow":"hidden","position":"fixed","width":"100%"});
+						j$('#footer').hide();
+					}
+				},
+				onCleanup: function() {
+					if(j$(".uploadify").length) {
+						j$(".uploadify").uploadify('destroy'); // must destroy uploadify to avoid errors in IE
+					}
+					if(!j$("body").hasClass("jMenuOn")) {
+						j$("#body_wrapper").css({"overflow":"auto","position":"static","width":"auto"});
+						j$('#footer').show();
+					}
+					j$("html, body").animate({ scrollTop: initPosition });
+				}
+			});
+		}
+
+		// if modal is in facebook app context change some display options
+		if (TVAPP.property.fb) {
+			j$.extend(defaults, {top:'50px',speed:50,transition:'none', opacity:0.9});
+		}
+		// if modal is in TBE iframe change some display options
+		if (TVAPP.property.tbe_iframe) {
+			j$.extend(defaults, {top:'120px',speed:50,transition:'none', opacity:0.9});
+		}
+		// if data.url, load external url instead of local content (using iframe method)
+		if (data.url) {
+			var settings = j$.extend({},defaults, options, {href:data.url, iframe:true });
+		// if data.load_blank, load the content or data.content within the blank_modal frame
+		} else if (data.load_blank) {
+			data.blank = data.blank || {};
+			var modalFrame = j$(TVAPP.ajaxIncludeContent({template:'blank_modal'}));
+			if (data.content) {
+				modalFrame.find('.modal_content').append(data.content);
+			} else {
+				j$.extend(data, {'template':content});
+				modalFrame.find('.modal_content').append(TVAPP.ajaxIncludeContent(data));
+			}
+			modalFrame.find('.blank_modal').addClass(content);
+			if(data.blank.title) modalFrame.find('.modal_title h3').append(data.blank.title);
+			if(data.blank.action_text) modalFrame.find('.action_buttons .submit_finish').text(data.blank.action_text);
+			if(data.blank.action_class) modalFrame.find('.action_buttons .submit_finish').addClass(data.blank.action_class);
+			if(data.blank.action_text || data.blank.action_class) modalFrame.find('.modal_actions').show();
+			var settings = j$.extend({},defaults, options, {html:modalFrame});
+		// if data.content, load it instead of ajax template
+		} else if (data.content) {
+			var settings = j$.extend({},defaults, options, {html:data.content});
+		// if data.cache, look for content in contentRepository
+		} else if (data.cache) {
+			var settings = j$.extend({},defaults, options, {html:TVAPP.smLoadContent(content, data.context)});
+		// default to loading content from template
+		} else {
+			j$.extend(data, {'template':content});
+			var settings = j$.extend({},defaults, options, {html:TVAPP.ajaxIncludeContent(data)});
+		}
+		TVAPP.modal.loading = true;
+		j$.colorbox(settings);
+		j$.log('modal state: '+content);
+		TVAPP.modal.state = content;
+	},
+	
+	loadingStart: function(data) {
+		if (TVAPP.modal.state == "closed") return false;
+		var modal = j$('#cboxLoadedContent');
+		var settings = {
+			replace: modal.find('form').first(),
+			options: {
+				lines: 13, // The number of lines to draw
+				length: 7, // The length of each line
+				width: 4, // The line thickness
+				radius: 10, // The radius of the inner circle
+				color: '#555', // #rgb or #rrggbb
+				trail: 50 // Amount of afterglow
+			}
+		};
+		j$.extend(true, settings, data);
+		settings.replace.parent().append(j$('<div class="modal_spinner" />').css({'height':settings.replace.height(),'width':settings.replace.width()}));
+		settings.replace.fadeOut('fast');
+		j$(".jCloseModal", modal).hide();
+		j$('.modal_spinner', modal).spin(settings.options);
+		j$(document).unbind('keydown.cbox');
+	},
+	
+	loadingStop: function(data) {
+		data = data || {};
+		if (TVAPP.modal.state == "closed") return false;
+		var modal = j$('#cboxLoadedContent');
+		var settings = {replace: modal.find('form').first()};
+		j$.extend(settings, data);
+		j$(".modal_spinner", modal).remove();
+		settings.replace.fadeIn('fast');		
+		j$(".jCloseModal", modal).show();
+		if (data.escKey != false) {
+			j$(document).bind('keydown.cbox', function(e){
+				if(TVAPP.modal.state != 'closed' && e.keyCode === 27) {
+					e.preventDefault();
+					TVAPP.modal.close();
+				}
+			});
+		}
+	},
+	
+	defaultModalInitialize: function(data) {
+		data = data || {};
+		var modal = j$('#cboxLoadedContent');
+		
+		// initialize close modal buttons
+		j$('.jCloseModal', modal).click(function(){	TVAPP.modal.close();});
+		TVAPP.trapFocusToMenuItems(modal);
+
+		if (TVAPP.modal.returnState.length) j$('.modal_title .jCloseModal', modal).addClass('entypo').html(TVAPP.smDict('entypo.reply')); // replace close icon with return icon
+		
+		// initialize any tooltips
+		if(j$(".jTooltip", modal).length) {
+			// removed
+		}
+		
+		var modalTitleId = j$("div.modal_title h3").attr("id"); 
+		if (typeof modalTitleId === "undefined"){
+			j$("div.modal_title h3").attr("id","modalTitle");
+			j$("div.modal_title").attr("aria-labelledby", "modalTitle");
+			
+			if(j$('.help_content', modal).length){
+				j$('.help_content', modal).attr('id', 'help_content_desc');
+				j$("div.modal_title").attr("aria-labelledby", "modalTitle help_content_desc");
+			}
+			j$('.jCloseModal.modal_close.entypo', modal).attr('aria-label', TVAPP.smDict('global.close'));
+		}else{
+			j$("div.modal_title").attr("aria-labelledby", modalTitleId);
+		}
+		
+		// initialize any chosen dropdowns
+		if(TVAPP.getInternetExplorerVersion() != 7) {
+			if(j$('.jChosen', modal).length) {
+				j$('.jChosen', modal).chosen({
+  				no_results_text: TVAPP.smDict('Chosen.no_results'),
+					placeholder_text_multiple: TVAPP.smDict('Chosen.placeholder_text_multiple'),
+					placeholder_text_single: TVAPP.smDict('Chosen.placeholder_text_single')
+				});
+			}
+		}
+		
+		TVAPP.chosenPostProcessor(j$('.jChosen', modal));
+		
+		// reset default colorbox escKey function to use TVAPP.modal.close();
+		j$(document).unbind('keydown.cbox');
+		if (data.escKey != false) {
+			j$(document).bind('keydown.cbox', function(e){
+				if(TVAPP.modal.state != 'closed' && e.keyCode === 27) {
+					e.preventDefault();
+					TVAPP.modal.close();
+				}
+			});
+		}
+		
+		// initialize any placeholders
+		j$("input[placeholder], textarea[placeholder]", modal).placeholder();
+
+		// if returning state has form data, restore previous form state
+		if (data.returnState && data.data) {
+			this.refreshFormData(data);
+			j$('div.error', modal).hide(); // hide any existing error messages.
+		}
+		
+		// if modal has anchor-only links give them scrollTop functionality 
+		// (does not currently work in IE7 because it converts all hrefs into absolute urls)
+		j$('a[href^="#"]', modal).filter('a[href!="#"]').click(function(event) {
+			event.preventDefault();
+			var target=j$(j$(this).attr('href'), modal),
+				scrollContainer = j$("body").hasClass("mobile") ? j$('#cboxWrapper') : j$('.modal_content', modal);
+			scrollContainer.animate({
+				scrollTop: (j$("body").hasClass("mobile") ? target.offset().top : target.position().top) + scrollContainer.scrollTop() - 15  // added for padding
+			});
+			return false;
+		});
+
+		// resize non-iframe content to fit
+		if (!data.url) {
+			j$.colorbox.resize();
+		}
+		
+		// update modal object finished loading
+		TVAPP.modal.loading = false;
+		j$(document).trigger('modal_initialized');
+	},
+
+	refreshFormData: function(data) {
+		var modal = j$('#cboxLoadedContent');
+		for(var i=0; i < data.data.length; i++) {
+			var input = j$('[name="'+data.data[i].name+'"]', modal);
+			if (input.first().attr('type') == 'radio') {
+				input.filter('[value="'+data.data[i].value+'"]').attr('checked', true).click();
+			} else if (input.attr('type') == 'checkbox') {
+				j$('[name="'+data.data[i].name+'"]', modal).attr('checked', true);
+			} else if (input.is('select')) {
+				input.find('option[value="'+data.data[i].value+'"]').attr('selected','selected');
+			} else {
+				j$('[name="'+data.data[i].name+'"]', modal).val(data.data[i].value);
+			}
+		}
+		j$('.jChosen', modal).trigger("liszt:updated"); // update any chosen picklists to reflect the data re-insertion
+	},
+	
+	trapFocusInModal: function(bToTrap) {
+		var modal = j$('#colorbox');
+		//Focus event handler to keep focus within the modal
+		var setFocus = function(e) {
+			if (!j$.contains(modal[0], e.target) && e.target !== j$('#cboxOverlay').get(0)) {
+				e.stopPropagation();
+				modal.focus();
+			}
+		};
+		//If true, bind focus event handler 'setFocus'
+		//If false, delete focus event handler 'setFocus'
+		if(bToTrap) {
+			j$(document).on('focus', setFocus);
+		} else {
+			j$(document).off('focus', setFocus);
+		}
+	}
+};

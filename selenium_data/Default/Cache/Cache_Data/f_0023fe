@@ -1,0 +1,624 @@
+/* ================================================== */
+/* site specific styles */
+/* ================================================== */
+
+
+/* -------------------------------------------------- */
+/* content colors */
+/* -------------------------------------------------- */
+
+/* body background and font */
+body {
+	background-color: #FFFFFF;
+	color: #001135;
+}
+
+/* link */
+a:link, a:visited, .link_sim {
+	color: #005AFF;
+}
+
+	/* user name pops background color */
+	.user_key_pops .menu_opt a:hover, .user_key_pops .menu_opt a:active {
+		background-color: #005AFF;
+	}
+
+/* link - hover */
+a:hover, a:active, .link_sim:hover {
+	color: #BEC8D2;
+}
+
+/* title */
+h1, h2, h3, h4, h5, h6 {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	color: #005AFF;
+}
+
+#content .content_body .content_header .title,
+#content .content_body .content_header .subtitle {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	color: #005AFF;
+}
+
+#description_box h1 {
+	color: #005AFF;
+}
+
+.campaign_list_hldr .list_name,
+.campaign_list_hldr .camp_title_icn,
+.create_opt .camp_icn_hldr .camp_icn {
+	color: #005AFF;
+}
+
+/* icon */
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_half .jlr_preferred_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_half .jlr_secondary_preferred_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_half .jlr_company_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_half .jlr_category_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_full .jlr_preferred_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_full .jlr_secondary_preferred_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_full .jlr_company_field .jlr_label, 
+.job_list_row .jlr_right_hldr .jlr_content .jlr_content_full .jlr_category_field .jlr_label {
+	color: #005AFF;
+}
+
+#content .content_body .content_header .subtitle .loc_icon {
+	color: #005AFF;
+}
+
+#content .content_body .content_header .user_locale_hldr .user_locale .entypo.globus {
+	color: #005AFF;
+}
+
+#description_box .info_box .info_box_fields dl .job_icon {
+	color: #005AFF;
+}
+
+.create_opt .camp_btn_hldr a.campaign_manage_btn .btn_icon {
+  	color: #005AFF;
+}
+
+#search_banner .search_positioner {
+	background-color: #ffffff;
+}
+
+
+/* -------------------------------------------------- */
+/* navigation colors */
+/* -------------------------------------------------- */
+
+/* header background */
+#header, #header_modular, body.taleo_biz #header_tbe {
+	background-color: #ffffff;
+}
+
+/* header background - modular layout */
+#header_modular .subnav {
+	background-color: #ffffff;
+}
+
+/* key name */
+#header #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area, 
+#header_modular #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area, 
+#header_settings #header_settings_container #key_hldr #main_key #key_name_hldr .user_drop_area, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area {
+	color: #001135;
+}
+
+/* key name - hover */
+#header #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area:hover, 
+#header_modular #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area:hover, 
+#header_settings #header_settings_container #key_hldr #main_key #key_name_hldr .user_drop_area:hover, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area:hover {
+	color: #001135;
+	/* color: scale-lightness($nav-txt-color,25); */
+}
+
+/* key name - site mode 1 and recruiters */
+#header #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area .user_name_area, 
+#header_modular #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area .user_name_area, 
+#header_settings #header_settings_container #key_hldr #main_key #key_name_hldr .user_drop_area .user_name_area, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area .user_name_area {
+	color: #001135;
+}
+
+/* key arrow */
+#header #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .key_menu_icn, 
+#header_modular #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .key_menu_icn, 
+#header_settings #header_settings_container #key_hldr #main_key #key_name_hldr .key_menu_icn, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .key_menu_icn {
+	border-color: #001135 rgba(0, 0, 0, 0) rgba(0, 0, 0, 0);
+}
+
+/* key arrow - hover */
+#header #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area:hover .key_menu_icn, 
+#header_modular #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area:hover .key_menu_icn, 
+#header_settings #header_settings_container #key_hldr #main_key #key_name_hldr .user_drop_area:hover .key_menu_icn, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #key_hldr #main_key #key_name_hldr .user_drop_area:hover .key_menu_icn {
+    border-top-color: #001135;
+}
+
+/* navigation link */
+#header #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a, 
+#header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a {
+	color: #001135;
+}
+
+/* navigation link - hover */
+#header #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:hover, 
+#header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:hover, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:hover, 
+#header #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:active, 
+#header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:active, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:active {
+	color: #001135;
+}
+
+/* navigation link - underline */
+#header #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:hover span.nav_txt, 
+#header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:hover span.nav_txt, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:hover span.nav_txt, 
+#header #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:active span.nav_txt, 
+#header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:active span.nav_txt, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a:active span.nav_txt {
+	border-bottom: 2px solid #00C9FF;
+}
+
+/* navigation link - selected */
+#header #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a.selected, 
+#header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a.selected, 
+body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .nav_item a.selected {
+	background-color: #EDF3F5;
+}
+
+/* sub-navigation link */
+.subnav #subnav_area #subnav_hldr .nav_item a {
+	color: #555555;
+}
+
+/* sub-navigation link - underline */
+.subnav #subnav_area #subnav_hldr .nav_item a:hover .nav_txt {
+	border-bottom-color: #00C9FF;
+}
+
+/* sub-navigation link - active */
+.subnav #subnav_area #subnav_hldr .nav_item a.nav_active {
+	color: #1080cf;
+}
+
+/* footer background */
+#footer, #footer_modular {
+	background-color: #EDF3F5;
+}
+
+/* footer text */
+#footer .footer_container .footer_nav_hldr .footer_content .footer_copyright, 
+#footer_modular .footer_container .footer_nav_hldr .footer_content .footer_copyright {
+	color: #4D5766;
+}
+
+/* footer link */
+#footer .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a, 
+#footer_modular .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a {
+	color: #4D5766;
+}
+
+/* footer link - hover (same color as footer link unless specified) */
+#footer .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:hover, 
+#footer_modular .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:hover, 
+#footer .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:active, 
+#footer_modular .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:active {
+	color: #4D5766;
+}
+
+/* footer link - underline */
+#footer .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:hover span.nav_txt, 
+#footer_modular .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:hover span.nav_txt, 
+#footer .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:active span.nav_txt, 
+#footer_modular .footer_container .footer_nav_hldr .footer_content .footer_nav .nav_item a:active span.nav_txt {
+	border-bottom: 2px solid #4D5766;
+}
+
+
+/* -------------------------------------------------- */
+/* button colors */
+/* -------------------------------------------------- */
+
+/* primary button */
+.primary_btn, a.primary_btn, 
+.generic_btn, a.generic_btn,
+.form_btn, a.form_btn {
+	background-color: #EDF3F5;
+	border-color: #9a9e9f;
+	color: #005AFF;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.primary_btn:hover, a.primary_btn:hover, 
+.generic_btn:hover, a.generic_btn:hover,
+.form_btn:hover, a.form_btn:hover {
+	background-color: #eff4f6;
+	color: #005AFF;
+}
+
+/* primary button exception for job details refer button on mobile devices */
+/* secondary color on desktop, primary color on mobile devices */
+body.mobile #description_box .info_box .info_btn_box #refer_btn {
+	background-color: #EDF3F5;
+	border-color: #9a9e9f;
+	color: #005AFF;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+body.mobile #description_box .info_box .info_btn_box #refer_btn:hover {
+	background-color: #eff4f6;
+	color: #005AFF;
+}
+
+/* secondary button */
+.secondary_btn, a.secondary_btn,
+.gray_btn, a.gray_btn,
+.load_btn, a.load_btn {
+	background-color: #e5e5e5;
+	border-color: #949494;
+	color: #005AFF;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.secondary_btn:hover, a.secondary_btn:hover,
+.gray_btn:hover, a.gray_btn:hover,
+.load_btn:hover, a.load_btn:hover {
+	background-color: #d8d8d8;
+	color: #005AFF;
+}
+
+/* resume upload button */
+.resume_upload_btn {
+margin-right: 4px;
+position: relative
+}
+.resume_upload_btn.gray_btn {
+font-size: 12px;
+border-size: 1px;
+border-radius: 3px;
+display: inline-block;
+margin-top: 6px;
+padding: 4px 4px;
+text-align: center;
+min-width: 125px;
+}
+.resume_upload_file_input {
+position: absolute;
+top: 0;
+right: 0;
+margin: 0;
+opacity: 0;
+-ms-filter: 'alpha(opacity=0)';
+font-size: 30px !important;
+direction: ltr;  cursor: pointer;
+}
+
+.sitebuilder_upload_btn.gray_btn {
+font-size: 12px;
+border-size: 1px;
+border-radius: 3px;
+display: inline-block;
+margin-top: 6px;
+padding: 4px 4px;
+text-align: center;
+min-width: 125px;
+}
+.sitebuilder_upload_file_input {
+position: absolute;
+top: 0;
+right: 0;
+margin: 0;
+opacity: 0;
+-ms-filter: 'alpha(opacity=0)';
+font-size: 30px !important;
+direction: ltr;  cursor: pointer;
+}
+
+/* search button */
+.search_btn {
+	background-color: #EDF3F5;
+	color: #4D5766;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.search_btn:hover {
+	background-color: #eff4f6;
+	color: #4D5766;
+}
+
+.search_btn.load_btn {
+	background-color: #e5e5e5;
+}
+
+.search_btn.load_btn:hover {
+	background-color: #d8d8d8;
+}
+
+/* create button */
+.create_account_btn {
+	background-color: #4D5766;
+	border-color: #323942;
+	color: #ffffff;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.create_account_btn:hover {
+	background-color: #5f6875;
+}
+
+/* help page - use create button colors */
+.help .content_body .grey_btn {
+	background-color: #4D5766;
+	border-color: #323942;
+	color: #ffffff;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.help .content_body .grey_btn:hover {
+	background-color: #5f6875;
+}
+
+/* help page - use secondary button colors */
+.help .content_body a.generic_btn.green_btn {
+	background-color: #e5e5e5;
+	border-color: #949494;
+	color: #005AFF;
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.help .content_body a.generic_btn.green_btn:hover {
+	background-color: #d8d8d8;
+	color: #005AFF;
+}
+
+.cancel_btn, a.cancel_btn {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+
+/* -------------------------------------------------- */
+/* category tiles colors */
+/* -------------------------------------------------- */
+
+/* category tile 1 */
+#category_page_tiles #category_tile_1 {
+	border-color: #00C9FF #a6ecff #a6ecff;
+}
+
+#category_page_tiles #category_tile_1 h4 {
+	border-bottom: 1px solid #a6ecff;
+}
+
+#category_page_tiles #category_tile_1 h4 .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_1 .cat_job_location .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_1 .cat_list_row {
+	border-bottom: 1px solid #a6ecff;
+}
+
+/* category tile 2 */
+#category_page_tiles #category_tile_2 {
+	border-color: #00C9FF #a6ecff #a6ecff;
+}
+
+#category_page_tiles #category_tile_2 h4 {
+	border-bottom: 1px solid #a6ecff;
+}
+
+#category_page_tiles #category_tile_2 h4 .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_2 .cat_job_location .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_2 .cat_list_row {
+	border-bottom: 1px solid #a6ecff;
+}
+
+/* category tile 3 */
+#category_page_tiles #category_tile_3 {
+	border-color: #00C9FF #a6ecff #a6ecff;
+}
+
+#category_page_tiles #category_tile_3 h4 {
+	border-bottom: 1px solid #a6ecff;
+}
+
+#category_page_tiles #category_tile_3 h4 .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_3 .cat_job_location .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_3 .cat_list_row {
+	border-bottom: 1px solid #a6ecff;
+}
+
+/* category tile 4 */
+#category_page_tiles #category_tile_4 {
+	border-color: #00C9FF #a6ecff #a6ecff;
+}
+
+#category_page_tiles #category_tile_4 h4 {
+	border-bottom: 1px solid #a6ecff;
+}
+
+#category_page_tiles #category_tile_4 h4 .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_4 .cat_job_location .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_4 .cat_list_row {
+	border-bottom: 1px solid #a6ecff;
+}
+
+/* category tile 5 */
+#category_page_tiles #category_tile_5 {
+	border-color: #00C9FF #a6ecff #a6ecff;
+}
+
+#category_page_tiles #category_tile_5 h4 {
+	border-bottom: 1px solid #a6ecff;
+}
+
+#category_page_tiles #category_tile_5 h4 .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_5 .cat_job_location .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_5 .cat_list_row {
+	border-bottom: 1px solid #a6ecff;
+}
+
+/* category tile 6 */
+#category_page_tiles #category_tile_6 {
+	border-color: #00C9FF #a6ecff #a6ecff;
+}
+
+#category_page_tiles #category_tile_6 h4 {
+	border-bottom: 1px solid #a6ecff;
+}
+
+#category_page_tiles #category_tile_6 h4 .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_6 .cat_job_location .entypo {
+	color: #00C9FF;
+}
+
+#category_page_tiles #category_tile_6 .cat_list_row {
+	border-bottom: 1px solid #a6ecff;
+}
+
+
+/* -------------------------------------------------- */
+/* fonts */
+/* -------------------------------------------------- */
+
+.font_light {
+	font-family: 'HelveticaNeueW01-45Ligh','Helvetica Neue W01 45 Light','Helvetica Neue',Helvetica,Arial,sans-serif;
+}
+
+.font_normal, body {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+	/* form elements do not inherit font family by default */
+	input, select, textarea, button {
+		font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	}
+
+.font_bold, body strong, div.error {
+	font-family: Nokia Pure Text Bold, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+	/* could not be updated due to javascript */
+	li.ui-autocomplete-category, li.ui-autocomplete-viewall, /* _autocomplete.scss */
+	#campaign_end .camp_title, .summary_statement .recip_num, .summary_statement .jobs_num, .summary_statement .pages_num, /* _campaign_utils.scss */
+	.summary_hldr .summary_statement .recip_num, .summary_hldr .summary_statement .jobs_num, .ref_btn_hldr .number_of_results .total_results, .ref_btn_hldr .number_of_results .keyword_bold, #jobs_filters_title .number_of_results .total_results, /* _job_results.scss */
+	#search_banner .chzn-container-multi .chzn-choices .search-field input, #search_banner .location_input_hldr .tooltip-inner, /* _job_search_banner.scss */
+	#colorbox .modal_agent_learn .ui-accordion .ui-accordion-header, /* _modals.scss */
+	#colorbox .social_status_update #counter, #colorbox .linkedin_message .section_title, #colorbox .linkedin_message h3, /* _modal_refer.scss */
+	.pagination_holder .pagination a, .pagination_holder .pagination .current, /* _pagination.scss */
+	.area_content .self_stats .stat_interact .stat_num, #right_bar .job_stats .job_stats_num, /* _right_capsule.scss */
+	.new_fb_page, .card_toggle_row .page_state, /* _social_pages.scss */
+	.standard_table thead th, /* _tabular.scss */
+	.nu_modal_box strong, .nu_modal_content strong, /* core.scss */
+	#help_content .help_a h4, #help_content .help_a h5, /* info_help.scss */
+	.devign_grid td a, .graph_container .graph_head a, .graph_container .graph_wrap .graph, /* report_details.scss */
+	.card_toggle_row .toggle_private .page_state /* user_settings.scss */ 
+	{
+		font-family: Nokia Pure Text Bold, Verdana, Helvetica Neue, Arial, sans-serif;
+	}
+
+.font_header_light { /* declared in font colors above */
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+	
+	/* mobile category tile title */
+	body.mobile h1#mobileOnlyCategoryTitle {
+		font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	}
+
+	/* could not be updated due to javascript */
+	.analytics_loader {
+		font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	}
+
+.font_header_normal {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.font_header_bold {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+	#colorbox .modal_title h3, /* _modals.scss */
+	#colorbox .linkedin_message .contacts_list .jAutoDelete, /* _modal_refer.scss */
+	.nu_modal_title h3, /* core.scss */
+	#help_content .help_active h4.help_q /* info_help.scss */
+	{
+		font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	}
+
+.font_header_promo {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.font_btn { /* declared in button colors above */
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+.font_nav {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+
+	/* user settings - left nav active link - currently using scrollspy */
+	.left_content_box .fast_hldr.active a {
+		font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;	
+	}
+
+	/* mobile menu links */
+	body.mobile #header #header_container #nav_key_hldr #nav_hldr #main_nav .key_panel .menu_opt a, 
+	body.mobile #header_modular #header_container #nav_key_hldr #nav_hldr #main_nav .key_panel .menu_opt a, 
+	body.mobile #header_settings #header_settings_container #nav_hldr #main_nav .key_panel .menu_opt a, 
+	body.mobile body.taleo_biz #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .key_panel .menu_opt a, 
+	body.taleo_biz body.mobile #header_tbe #header_container #nav_key_hldr #nav_hldr #main_nav .key_panel .menu_opt a {
+		font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+	}
+
+.font_footer {
+	font-family: Nokia Pure Text, Verdana, Helvetica Neue, Arial, sans-serif;
+}
+.show_btn_label {
+    border: none;
+    background: transparent;
+}
+.header_emp_label {
+    float: left;
+    line-height: 14px;
+    margine-left: 7px;
+    padding: 7px 11px;
+}

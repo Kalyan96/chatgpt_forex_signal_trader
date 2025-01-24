@@ -1,0 +1,697 @@
+(function(j$) {
+	// global variable
+	var job_search_id;
+
+
+	var clickAllLocationsActions = function(event, obj) {
+
+		var loc_select = j$('select.jLocInput', search_banner),
+			loc_chzn = j$('.jLocInputChzn', search_banner);
+
+		function blurLocInput() {
+			var loc_string = '',
+				loc_array = [],
+				selected_locs = j$('.jLocInput option:selected', search_banner);
+
+			selected_locs.each(function() {
+				loc_array.push(j$(obj).text());
+			});
+			loc_string = loc_array.join('; ');
+
+			function showPlaceholder(loc_placeholder) {
+				loc_chzn.parents('.jSearchInputHldr').removeClass('input_active');
+				loc_select.hide();
+				loc_chzn.hide();
+
+				j$('.jLocPlaceholder', search_banner).text(loc_placeholder).show().css('display', '');
+			}
+
+			if (selected_locs.length == 1) {
+				showPlaceholder(selected_locs.text());
+			} else if (selected_locs.length > 1) {
+				if (j$('body').hasClass('mobile') && loc_string.length <= 30) {
+					showPlaceholder(loc_string);
+				} else {
+					TVAPP.pluralize('Jobs.Search.LocationPlaceholder', selected_locs.length, null, function(data) {
+						showPlaceholder(data.UserMessage);
+					});
+				}
+			} else {
+				showPlaceholder(TVAPP.smDict('global.all_locations'));
+			}
+		}
+
+		j$(obj).hide();
+
+		if (loc_chzn.length) {
+			loc_chzn.show().parents('.jSearchInputHldr').addClass('input_active');
+			loc_select.trigger('liszt:open');
+
+			j$(document).on('click.search_loc', function(event) {
+
+				// Check against document first, in case click has removed event target from the DOM already;
+				// If target is in doc but outside of location input holder, "blur" the location input
+				if (j$.contains(document, event.target) && !(j$.contains(document.getElementById('jLocInputHldr'), event.target)||document.getElementById('jLocInputHldr')===event.target)) {
+					blurLocInput();
+					j$(document).off('click.search_loc');
+				}
+			});
+		} else {
+			loc_select.show().focus();
+
+			loc_select.on('blur.search_loc', function() {
+				blurLocInput();
+
+				j$(obj).off('blur.search_loc');
+			});
+		}
+
+	};
+
+	// function and binding to populate "my location"
+	var updateCurrentGeolocation = function(overwrite) {
+
+		if(TVAPP.property.geoSearch && navigator.geolocation && TVAPP.property.findGeoLocation) { //findGeoLocation -> toggle in CZ
+			var	search_banner = j$('.jSearchBanner'),
+				loc_pin = j$('.jSearchInputIcn.loc_icn', search_banner),
+				errorTimeout;
+			// animate the location icon
+			loc_pin.addClass('flipped spin');
+			var animateIcon=setInterval(function(){
+				loc_pin.toggleClass('flipped');
+			},1000);
+			// define function to end animation and show error (if applicable)
+			var endAnimateIcon = function(error) {
+				clearInterval(animateIcon);
+				loc_pin.removeClass('flipped spin');
+				if(error) {
+					j$('.jGeoLocationError',search_banner).addClass('my_location').slideDown('fast');
+					clearTimeout(errorTimeout);
+					errorTimeout = setTimeout(function() {
+						j$('.jGeoLocationError',search_banner).slideUp('fast', function() {
+							j$('.jGeoLocationError',search_banner).removeClass('my_location');
+						});
+					}, 5000);
+				}
+			};
+			j$(document).bind('endMyLocationAnimation', function(e,data) { endAnimateIcon(data); });
+			// call html5 location request
+			navigator.geolocation.getCurrentPosition(function(position){
+				// limit "my location" to minimum accuracy
+				if (position.coords.accuracy <= parseInt(TVAPP.property.geoSearch.accuracyLimit) || parseInt(TVAPP.property.geoSearch.accuracyLimit) == 0) {
+					var lat=(position.coords.latitude).toPrecision(7),
+						lon=(position.coords.longitude).toPrecision(7),
+						loc_input=j$('input.jLocInput', search_banner);
+					// reverse geocode the location coordinates
+					j$.ajax({
+						url:'/ajax/geolocation/find-location-by-coord?lat='+lat+'&lon='+lon,
+						success: function(response){
+							// if response is valid and field is writable, update the field and that geo data
+							if(response.Result && response.Result != ", " && (!loc_input.parent().hasClass('input_active') && (loc_input.val() == '' || loc_input.val() == loc_input.attr('placeholder')) || overwrite)) {
+								j$('input.jLocInput', search_banner).parent().addClass('jActiveField');
+								j$('input.jLocInput', search_banner).val(response.Result['location']).siblings('#jGeoData').data({
+									'geo_lat':lat,
+									'geo_long':lon,
+									'geo_location':response.Result['location'],
+									'geo_level':'city',
+									'geo_area_id':'',
+									'geo_region_area_id':response.Result['region_area_id'],
+									'geo_country_area_id':response.Result['country_area_id']
+								});
+							}
+							endAnimateIcon(); // end the animation
+						},
+						error: function() {
+							endAnimateIcon(true); // end the animation
+						},
+						dataType: 'json'
+					});
+				} else {
+					j$.log("Geolocation accuracy limit not met");
+					endAnimateIcon(true); // end the animation with error message
+				}
+			}, function(error){
+				switch(error.code) {
+					case error.PERMISSION_DENIED:
+						j$.log("User denied the request for Geolocation.");
+						break;
+					case error.POSITION_UNAVAILABLE:
+						j$.log("Geolocation information is unavailable.");
+						break;
+					case error.TIMEOUT:
+						j$.log("The request to get user location timed out.");
+						break;
+					case error.UNKNOWN_ERROR:
+						j$.log("An unknown error occurred while requesting Geolocation.");
+						break;
+				}
+				endAnimateIcon(true); // end the animation with error message
+				return false;
+			},{timeout:10000});
+		} else {
+			if(!TVAPP.property.geoSearch) j$.log('Geolocation not activated.');
+			if(!navigator.geolocation) j$.log('Geolocation not supported.');
+			return false;
+		}
+	};
+	j$(document).on('updateCurrentGeolocation',function(event,data) { updateCurrentGeolocation(data); });
+	// activate "my location" on portal first load
+	if(j$('body').hasClass('portal') && !j$('#sitebuilder_enabled').length) {
+		updateCurrentGeolocation();
+	}
+
+	// function and binding to update the search banner data
+	var searchBannerUpdate = function(data) {
+		// define variables
+		var data = data || {},
+			search_banner = j$('.jSearchBanner'),
+			active_results = j$('.jResultsActive', '#jResultsArea');
+
+		if(active_results.length && !data.clear) {
+			// update banner search category value
+			j$('input.jCatInput', search_banner).val(active_results.data('keywords')).blur();
+			// update banner search location value(s)
+			if(TVAPP.property.geoSearch) {
+				if(active_results.data('geo_location')!='') {
+					j$('#jGeoData', search_banner).data({
+						'geo_location':active_results.data('geo_location'),
+						'geo_lat':active_results.data('geo_lat'),
+						'geo_long':active_results.data('geo_long'),
+						'geo_search_radius_km':active_results.data('geo_search_radius_km'),
+						'geo_search_radius_units':active_results.data('geo_search_radius_units'),
+						'geo_level':active_results.data('geo_level'),
+						'geo_area_id':active_results.data('geo_area_id'),
+						'geo_region_area_id':active_results.data('geo_region_area_id'),
+						'geo_country_area_id':active_results.data('geo_country_area_id'),
+					});
+					j$('.jLocInput', search_banner).parent().addClass('jActiveField');
+					j$('.jLocInput', search_banner).val(active_results.data('geo_location')).blur();
+				} else {
+					j$('#jGeoData', search_banner).data({
+						'geo_location':'',
+						'geo_lat':'',
+						'geo_long':'',
+						'geo_search_radius_km':'',
+						'geo_search_radius_units':'',
+						'geo_level':'',
+						'geo_area_id':'',
+						'geo_region_area_id':'',
+						'geo_country_area_id':''
+					});
+					j$('.jLocInput', search_banner).parent().removeClass('jActiveField');
+					j$('.jLocInput', search_banner).val('').blur();
+				}
+			} else {
+				j$('.jLocPlaceholder').text(active_results.data('location-string-short'));
+				var loc_ids = j$.map(active_results.data('location-ids').toString().split(','),j$.trim);
+				j$('select.jLocInput', search_banner).val(loc_ids).trigger('liszt:updated').blur();
+				TVAPP.chosenPostProcessor(j$('select.jLocInput', search_banner));
+			}
+		} else {
+			// update banner search values
+			j$('input.jCatInput', search_banner).val('').blur();
+			if(TVAPP.property.geoSearch) {
+				j$('input.jLocInput', search_banner).val('').blur();
+				j$('#jGeoData', search_banner).data({'geo_lat':'','geo_long':'','geo_location':''});
+			} else {
+				j$('.jLocPlaceholder').text(TVAPP.smDict('global.all_locations'));
+				j$('select.jLocInput', search_banner).val('').trigger('liszt:updated');
+			}
+			j$('.jLocInput').parent().removeClass('jActiveField');
+		}
+		// re-enable the search button
+		j$('#jSearchSubmit').removeClass('load_btn jSubmitDisabled');
+	};
+	j$(document).bind('searchBannerUpdate', function(e,data) { searchBannerUpdate(data); });
+
+	// function and binding to trigger the search banner loading state
+	var searchBannerLoading = function(data) {
+		data = data || {};
+		// disable and spinnerize the search button
+		if(!data.update_existing) j$('#jSearchSubmit').addClass('load_btn');
+		j$('#jSearchSubmit').addClass('jSubmitDisabled');
+
+		// if portal page
+		if (j$('body').hasClass('portal')) {
+			var search_hldr = j$('.jSearchHldr'),
+				search_hldr_height = 0,
+				search_heading = j$('.jHeadingWrapper');
+
+			// get collapsed height
+			search_hldr.addClass('hidden_hero').css('height', '');
+			search_hldr_height = search_hldr.height();
+			search_hldr.removeClass('hidden_hero');
+
+			// hide search banner completely for mobile
+			if (j$('body').hasClass('mobile')) {
+				search_hldr.slideUp(500, function() {
+					search_hldr.addClass('hidden_hero');
+				});
+				// animate to collapsed banner
+			} else {
+				search_hldr.animate({ height: search_hldr_height }, 500, function() {
+					j$(this).css('height', '');
+				});
+				search_heading.slideUp(500, function() {
+					search_hldr.addClass('hidden_hero');
+				});
+			}
+
+			// show toggle on mobile
+			if (j$('body').hasClass('mobile')) j$('#jMenuSearchToggle').parent().show();
+
+			// handle existing search
+		} else {
+			if (j$('body').hasClass('mobile')) j$('#jMenuSearchToggle').addClass('jMenuActive').click();
+		}
+	};
+	j$(document).bind('searchBannerLoading', function(event,data) { searchBannerLoading(data); });
+
+	// function to refresh all search banner bindings
+	var searchBannerBindings = function($scope) {
+
+		var	search_banner = j$('.jSearchBanner', $scope), // main search banner element
+			cat_input = j$('input.jCatInput', search_banner), // input field for category/keyword
+			loc_select = j$('select.jLocInput', search_banner), // select field for non-geo locations
+			loc_input = j$('input.jLocInput', search_banner), // input field for geo locations
+			active_results = j$('.jResultsContent:first', '#jResultsArea'); // active results (if any)
+
+		cat_input.placeholder();
+		loc_input.placeholder();
+
+		// handle drop down location menu for non-geo locations
+		if(loc_select.length) {
+			loc_select.show();
+			// if results and location select, assign the selected values
+			if(active_results.length) {
+				j$('.jLocPlaceholder', search_banner).text(active_results.data('location-string-short'));
+				loc_select.val(j$.map(active_results.data('location-ids').toString().split(','),j$.trim));
+			}
+			// Browser-default multiselect for mobile
+			if (j$.browser.mobile) {
+				loc_select.hide();
+				// bind chosen for non-geo location
+			} else {
+				// Chosen initialization (w/ custom interactions)
+				loc_select
+					.on('liszt:ready', function(e, params) {
+						params.chosen.container.addClass('jLocInputChzn').hide();
+						params.chosen.container.find('input').blur(function() {}).focus(function() {});
+					})
+					.on('liszt:showing_dropdown', function() {
+						var chzn_left, chzn_top, chzn_width;
+
+						if (!j$('body').hasClass('mobile')) {
+							chzn_left = function(index, value) { return parseInt(value) - 7 };
+							chzn_top = function(index, value) { return parseInt(value) + 3 };
+							chzn_width = '287px';
+						} else {
+							if (j$('body').hasClass('job_list') || j$('.jSearchHldr').hasClass('hidden_hero')) {
+								chzn_left = -1 * j$('.jLocInputChzn').offset().left + 20 + 'px';
+								chzn_top = '51px';
+								chzn_width = j$('body').outerWidth() - 40 + 'px';
+							} else {
+								chzn_left = function(index, value) { return parseInt(value) - 7 };
+								chzn_top = function(index, value) { return parseInt(value) + 3 };
+								chzn_width = j$('.jLocInputChzn').outerWidth() + 5 + 'px';
+							}
+						}
+						setTimeout(function() {
+							j$('.jLocInputChzn .chzn-drop').css({
+								'left': chzn_left,
+								'top': chzn_top,
+								'width': chzn_width
+							});
+						}, 0);
+					})
+					.chosen({
+						no_results_text: TVAPP.smDict('Chosen.no_results'),
+						placeholder_text_multiple: TVAPP.smDict('Chosen.placeholder_text_multiple'),
+						placeholder_text_single: TVAPP.smDict('Chosen.placeholder_text_single')
+					});
+			}
+			TVAPP.chosenPostProcessor(j$('select.jLocInput', search_banner));
+
+
+			// Faceted location input placeholder
+			j$('.jLocPlaceholder', search_banner).focus(function(event) {
+				j$('.jLocPlaceholder', search_banner).trigger('click');
+			});
+			j$('.jLocPlaceholder', search_banner).click(function(event) {
+				clickAllLocationsActions(event, this);
+			});
+		}
+
+		// Auto-Suggest for input fields
+		j$.widget('custom.searchcomplete', j$.ui.autocomplete, {
+			_renderMenu: function(ul, items) {
+				var self = this;
+				ul.attr('id', j$(this.element).attr('id') + '_search').addClass('facetsearch');
+				ul.attr({'tabindex':'-1'});
+				j$.each(items, function(index, item) {
+					self._renderItem(ul, item);
+				});
+			},
+			_renderItem: function(ul, item) {
+				var bucket = item.facet_name;
+				if (bucket == 'category' && j$(".li_"+ bucket, ul).length < TVAPP.property.keyword_auto_suggest_num_results && item.facet_uri != "already_added") {
+					var tmp = j$( '<li class="li_'+ bucket +'"></li>').append("<a href='/ajax" + item.facet_uri + "'>" + item.attribute_name + "</a>");
+					tmp.data( "ui-autocomplete-item", item ).appendTo( ul );
+					return tmp;
+				} else if (bucket != 'category') {
+					var tmp = j$( '<li class="li_location"></li>').append("<a href='#'>" + item.location + "</a>");
+					tmp.data( "ui-autocomplete-item", item ).appendTo( ul );
+					return tmp;
+				}
+			}
+		});
+
+		var autocomplete_inputs = TVAPP.property.keyword_auto_suggest_num_results > 0 ? j$('input.jCatInput, input.jLocInput', search_banner) : j$('input.jLocInput', search_banner);
+
+		autocomplete_inputs.searchcomplete({
+			minLength: 0,
+			source: function(request, response) {
+				var holdit = [],
+					elem = j$(this.element),
+					facet_name = elem.parents(".jAddFacetSearch").attr("action");
+
+				var url = "/facets/job/" + facet_name + "/auto-suggest";
+
+				if (facet_name == 'location') {
+					url = '/ajax/geolocation/auto-suggest';
+					// AJAX fails for empty geolocation query, so disable it
+					if (TVAPP.isEmpty(j$.trim(request.term))) return false;
+				}
+				j$.log("REQUEST: "+ JSON.stringify(request));
+				j$.post(
+					url+'?keywords='+encodeURIComponent(j$.trim(request.term)),
+					function(result) {
+						if(result.Status == "OK") {
+							holdit = result.Result;
+						}
+						else {
+							holdit = result.Error.GeneralError;
+						}
+						response(holdit);
+					},
+					'json'
+				);
+
+			},
+			open: function(event, ui) {
+				var facet_left, facet_top, facet_width;
+				if (!j$('body').hasClass('mobile')) {
+					j$('.facetsearch').css({
+						'left': function(index, value) { return parseInt(value) - 7 },
+						'width': '287px'
+					});
+				} else {
+					if (j$('body').hasClass('job_list')) {
+						j$('.facetsearch').css({
+							'left': '20px',
+							'top': function(index, value) { return parseInt(value) + 17 },
+							'width': j$('body').outerWidth() - 40 + 'px'
+						});
+					} else {
+						j$('.facetsearch').css({
+							'left': function(index, value) { return parseInt(value) - 7 },
+							'width': j$('.jCatInput').outerWidth() + 5 + 'px'
+						});
+					}
+				}
+			},
+			focus: function(event, ui) {
+				event.preventDefault();
+				var this_input = j$(this);
+				if (ui.item.attribute_name) {
+					this_input.val(ui.item.attribute_name);
+				} else if (ui.item.location) {
+					this_input.val(ui.item.location);
+				}
+				return false;
+			},
+			select: function(event, ui) {
+				event.preventDefault();
+				var this_input = j$(this);
+				if (ui.item.location) {
+					j$.log(ui.item);
+					this_input.parent().addClass('jActiveField');
+					this_input.siblings('#jGeoData').data({
+						'geo_lat': ui.item.lat,
+						'geo_long': ui.item['long'],
+						'geo_location': ui.item.location,
+						'geo_level': ui.item.level,
+						'geo_area_id': ui.item.area_Id,
+						'geo_region_area_id': ui.item.region_area_id,
+						'geo_country_area_id': ui.item.country_area_id
+					});
+					this_input.val(ui.item.location);
+				} else if (ui.item.attribute_name) {
+					this_input.val(ui.item.attribute_name);
+				}
+				this_input.blur(); // fix ie8 refocusing issue
+				// if select was triggered by enter key, go straight to submit
+				if (event.which == 13) {
+					j$('#jSearchSubmit', search_banner).click();
+				}
+			}
+		});
+
+		// Search input bindings
+		j$('.jSearchInputHldr', search_banner).on('blur', 'input.jCatInput, input.jLocInput', function() {
+			j$(this).parents('.jSearchInputHldr').removeClass('input_active');
+		}).on('focus', 'input.jCatInput, input.jLocInput', function() {
+			j$(this).parents('.jSearchInputHldr').addClass('input_active');
+		});
+
+		// Geolocation input blur binding
+		var errorTimeout;
+		j$('input.jLocInput', search_banner).blur(function() {
+			var $this = j$(this);
+			// if autocomplete is still open, do nothing (IE8 bug)
+			if(j$('#location_geo_search').is(':visible')) {
+				return true;
+			}
+			// if the value is not autosuggested show a warning
+			if(!$this.parent().hasClass('jActiveField') && !($this.val() == '' || $this.val() == $this.attr('placeholder'))) {
+				j$('#jSearchSubmit', search_banner).addClass('jSubmitDisabled');
+				//clearTimeout(errorTimeout);
+				$this.siblings('.jGeoLocationError').slideDown('fast', function() {
+					j$(this).attr({"tabindex": "0", "aria-labelledby": "noLocationErr"}).focus();
+				});
+				//errorTimeout = setTimeout(function() {
+				//	$this.siblings('.jGeoLocationError').slideUp('fast');
+				//}, 5000);
+			} else if (!($this.val() == '' || $this.val() == $this.attr('placeholder')) && $this.val() != j$('#jGeoData').data('geo_location')){
+				$this.val(j$('#jGeoData').data('geo_location'));
+				j$('#jSearchSubmit', search_banner).removeClass('jSubmitDisabled');
+			} else {
+				j$('#jSearchSubmit', search_banner).removeClass('jSubmitDisabled');
+			}
+			// add select on focus
+		}).focus(function(){
+			// if location pin is spinning, end it
+			j$(document).trigger('endMyLocationAnimation');
+			// select all
+			j$(this).one('mouseup', function() {
+				j$(this).select();
+			});
+			// hide Geolocation error
+			j$(this).siblings('.jGeoLocationError').slideUp('fast');
+		});
+
+		// Geolocation error binding
+		j$('.jGeoLocErrorKeywordSearch', search_banner).click(function(e) {
+			e.preventDefault();
+
+			var cat_input = j$('input.jCatInput', search_banner),
+				loc_input = j$('input.jLocInput', search_banner),
+				location_regex = /[^,;]+/,
+				location_match = loc_input.val().trim().match(location_regex);
+
+			cat_input.val(cat_input.val() + ' ' + location_match[0]);
+			loc_input.val('').blur();
+
+			j$(this).parents('.jGeoLocationError').slideUp('fast');
+
+			j$('#jSearchSubmit', search_banner).click();
+		});
+		j$('.jGeoLocErrorRetry', search_banner).click(function(e) {
+			e.preventDefault();
+
+			j$(this).parents('.jGeoLocationError').slideUp('fast', function(){
+				j$('input.jLocInput', search_banner).focus();
+			});
+		});
+
+		// input auto-complete restrictions
+		j$('input.jCatInput, input.jLocInput', search_banner).bind('keyup', function(e) {
+			var this_input = j$(this),
+				input_parent = this_input.parent(),
+				facet_name = this_input.parents('.jAddFacetSearch').attr('action'),
+				original_val = input_parent.data('attribute_name');
+
+			if (TVAPP.isEmpty(original_val))
+				original_val = this_input.siblings('#jGeoData').data('geo_location');
+
+			if (e.which == 13) {
+				j$(this).blur();
+				j$('#jSearchSubmit', search_banner).click();
+			} else if (e.which == 9) {
+				// Do nothing when tab is pressed
+			} else if (input_parent.hasClass('jActiveField') && this_input.val() != original_val) {
+				// set field to invalid
+				input_parent.removeClass('jActiveField');
+			} else if (this_input.val() == original_val && this_input.hasClass('jLocInput')) {
+				input_parent.addClass('jActiveField');
+			}
+		});
+
+		autocomplete_inputs.focus(function() { j$(this).searchcomplete('search', j$(this).val()); });
+
+		j$('.jSearchInputIcn', search_banner).click(function() {
+			var this_icn = j$(this),
+				this_hldr = this_icn.parents('.jSearchInputHldr');
+
+			if (!this_hldr.hasClass('jMiniInputHldr')) {
+				this_icn.nextAll('.jCatInput, .jLocInput').focus();
+				this_icn.nextAll('.jLocPlaceholder').click();
+			} else {
+				this_hldr.removeClass('mini_input_hldr jMiniInputHldr');
+				j$('.jSearchInputHldr', search_banner).not(this_hldr).addClass('mini_input_hldr jMiniInputHldr');
+			}
+		});
+
+		// Main submit binding
+		j$('#jSearchSubmit', search_banner).click(function() {
+			if (j$(this).hasClass('jSubmitDisabled')) {
+				j$('input.jLocInput', search_banner).blur();
+				return false;
+			}
+
+			var cat_input = j$('.jCatInput', search_banner),
+				cat_val = cat_input.val(),
+				loc_input = j$('.jLocInput', search_banner),
+				loc_val = loc_input.val(),
+				loc_parent = loc_input.parent(),
+				data = {};
+
+			if (cat_input.hasClass('placeholder') && cat_val == cat_input.attr('placeholder')) cat_val = '';
+			if (loc_input.hasClass('placeholder') && loc_val == loc_input.attr('placeholder')) loc_val = '';
+
+			data['keywords'] = cat_val;
+
+			if (TVAPP.property.geoSearch) {
+				// if location pin is spinning, end it
+				j$(document).trigger('endMyLocationAnimation');
+				// if location field is active
+				if (loc_parent.hasClass('jActiveField')) {
+					j$.extend(data,loc_input.siblings('#jGeoData').data());
+					// if radius or units are missing, load the defaults
+					if(data['geo_search_radius_km']=='' || data['geo_search_radius_units']==''){
+						// decide which units to search in
+						if(TVAPP.property.geoSearch.radius.userControl && TVAPP.readCookie(TVAPP.property.cookie_prefix+"geo_search_radius_units") != null) {
+							data['geo_search_radius_units'] = TVAPP.readCookie(TVAPP.property.cookie_prefix+"geo_search_radius_units");
+						} else {
+							data['geo_search_radius_units'] = TVAPP.property.geoSearch.radius.metric ? 'km' : 'mi';
+						}
+						// apply default radius based on selected units
+						data['geo_search_radius_km'] = data['geo_search_radius_units']=='km' ? TVAPP.property.geoSearch.radius['default'] : (TVAPP.property.geoSearch.radius['default']*1.61).toFixed(2); // set default
+					}
+					data['geo_location'] = loc_input.val();
+				}
+			} else {
+				if (loc_input.val()) {
+					data['location_ids'] = loc_input.val().join(',');
+				}
+			}
+
+			j$(document).trigger('loadingState');
+
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid('/ajax/jobs/search/create'),
+				data: data,
+				success: function(result){
+					job_search_id = result.Result['JobSearch.id'];
+					j$.log('job_search_id: ' + job_search_id);
+					// Load results
+					j$(document).trigger('loadSearchResults', {'job_search_id':job_search_id});
+				},
+				dataType: 'json',
+				error: function(xhr, textStatus, error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});
+		});
+
+		// Mobile header search toggle
+		if( TVAPP.isEmpty(j$('#header_container').find('#jMenuSearchToggle')) ){
+			var header_toggle = '<div class="menu_toggle_hldr menu_toggle_hldr_right">' +
+				'<div id="jMenuSearchToggle" class="menu_toggle">' +
+				TVAPP.smDict('entypo.search') +
+				'</div>' +
+				'</div>';
+
+			j$('#header_container #logo_hldr').after(header_toggle);
+		}
+
+		// While we're faking the toggle via JS above, we need to trigger a scroll to run through the toggle show/hide logic again
+		j$(window).scroll();
+
+		j$('#jMenuSearchToggle').click(function(e) {
+			e.preventDefault();
+
+			var this_toggle = j$(this);
+
+			if (j$('body').hasClass('portal')) {
+				if(j$('#notify-banner').length > 0){
+					j$('html, body').animate({ scrollTop: j$('.jSearchPositioner').offset().top - j$('.jHeader').outerHeight() - j$('#header_settings').outerHeight() -j$('#notify-banner').outerHeight() }, 'slow', function() {
+						cat_input.focus();
+					});
+				} else {
+					j$('html, body').animate({ scrollTop: j$('.jSearchPositioner').offset().top - j$('.jHeader').outerHeight() - j$('#header_settings').outerHeight() }, 'slow', function() {
+						cat_input.focus();
+					});
+				}
+			} else {
+				if (!this_toggle.hasClass('jMenuActive')) {
+					j$('.jSearchBanner').stop(true, true).slideDown(500, function() {
+						this_toggle.addClass('jMenuActive');//removed .jSearchHldr
+						j$('.jSearchHldr').css('display','block');
+						//j$('html, body').animate({ scrollTop: j$(window).scrollTop() + 60 }, 200);
+					});
+
+					j$('html, body').animate({ scrollTop: 20 }, 'slow');
+				} else {
+					j$('.jSearchBanner').stop(true, true).slideUp(500, function() {
+						this_toggle.removeClass('jMenuActive');//removed .jSearchHldr
+						j$('.jSearchHldr').css('display','none');
+						//j$('html, body').animate({ scrollTop: j$(window).scrollTop() - 60 }, 200);
+					});
+
+					j$('html, body').animate({ scrollTop: j$(window).scrollTop() - 20 }, 'slow');
+				}
+			}
+		});
+
+		// apply Search button spinner (hidden via css until needed)
+		j$('#jSearchSubmit', search_banner).spin({
+			lines: 12, // The number of lines to draw
+			radius: 5, // The radius of the inner circle
+			color: '#6E6E6E', // #rgb or #rrggbb
+			zIndex: 99, // The z-index (defaults to 2000000000)
+			top: -10, // Top position relative to parent in px
+			left: 'auto' // Left position relative to parent in px
+		});
+	};
+	searchBannerBindings();
+	j$(document).bind('refreshBlockBindings', function(event, data) { searchBannerBindings(data); });
+
+	// function __searchButtonFocusHandler__(evt){
+	// 	 clickAllLocationsActions(evt);
+	// }
+
+	// j$('.jLocPlaceholder', search_banner).on('focus', __searchButtonFocusHandler__)
+
+})(jQuery);

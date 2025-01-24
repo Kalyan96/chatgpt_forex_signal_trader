@@ -1,0 +1,1363 @@
+(function(j$){
+	// declare variables
+	var campaign_id = j$('#jCampaignId').text(),
+		job_search_id = j$('#jResultsArea .jResultsContent:first').data('jsid');
+
+	// star job utilities
+	var showStarResult = function(result, star) {
+		if(result.Status == "OK") {
+			if(result.Result.action == "starring") {
+				j$(star).removeClass("star_off").addClass("star_on");
+				j$(star).attr("data-url","/ajax/jobs/" + result.Result.job_id + "/unstar");
+			}
+			else {
+				j$(star).removeClass("star_on").addClass("star_off");
+				j$(star).attr("data-url","/ajax/jobs/" + result.Result.job_id + "/star");
+			}
+		}
+		else {
+			j$('#content').html(result.Errors.GENERIC_ERROR_STRING);
+		}
+	};
+	var handleStarJob = function(my_star) {
+		var star_data = [];
+		var star_action=TVAPP.guid(j$(my_star).attr("data-url"));
+		TVAPP.smPost(star_action, star_data, function(data){showStarResult(data,my_star);} );
+	};
+	// bind star job click
+	j$(document).on('click', '.jStarJob', function(event) { handleStarJob(event.currentTarget); });
+
+	// hot job utilities
+	var showPriorityResult = function(result,job_btn) {
+		if(result.Status == "OK") {
+
+			var job_id = j$(job_btn).data("job-id");
+
+			if(j$(job_btn).attr("data-priority") == "20") {
+				j$(".jSetPriority[data-job-id='"+job_id+"'], .jFlagToggle[data-job-id='"+job_id+"']").removeClass("priority_on").attr("data-priority","10");
+			}
+			else {
+				j$(".jSetPriority[data-job-id='"+job_id+"'], .jFlagToggle[data-job-id='"+job_id+"']").addClass("priority_on").attr("data-priority","20");
+			}
+		}
+		else {
+			j$('#content').html(result.Errors.GENERIC_ERROR_STRING);
+		}
+	};
+	var handleSetPriority = function(job_btn) {
+		var job_data = { 'Job.hot_flg': j$(job_btn).attr('data-priority') };
+		var job_action = j$(job_btn).attr('data-url');
+		TVAPP.smPost(job_action, job_data, function(data) { showPriorityResult(data, job_btn); });
+	};
+	// bind hot job click
+	j$(document).on('click', '.jSetPriority, .jFlagToggle', function(event) { handleSetPriority(event.currentTarget); });
+
+	// bind facet collapse dynamic global
+	j$(document).off('click', '.jFacetCollapse').on('click', ".jFacetCollapse", function(){
+		var holder = j$(this).parents(".filter_hldr");
+
+		if(j$(holder).hasClass("jCollapsedHolder")){
+			j$(holder).removeClass("jCollapsedHolder");
+		}
+		else {
+			j$(holder).addClass("jCollapsedHolder");
+		}
+
+	});
+
+/*  testing safe removal tvapp.handleJobSearch	--JD
+	j$(".jFilterSelector").change(TVAPP.handleJobSearch);
+*/
+
+	/*------CAMPAIGN FUNCTIONS------------*/
+	if(campaign_id != '') {
+		// bind campaign send button
+		j$(document).on('click', '.jSendJobNow, .jSendJobSchedule', function(e) {
+			e.preventDefault();
+			var next_url = j$(this).attr('href');
+			if (parseInt(j$('.jNumJobs').text()) <= 0) {
+				j$('body').modal({ 'text': TVAPP.smDict('campaign.error.no_jobs') });
+			} else if (parseInt(j$('.jNumPages').text()) <= 0) {
+				j$('body').modal({ 'text': TVAPP.smDict('campaign.error.no_pages') });
+			} else {
+				j$.ajax({
+					type: 'POST',
+					url: TVAPP.guid('/ajax/campaigns/' + campaign_id + '/update-generic'),
+					data: {'Campaign.step_three_flg': '10'},
+					success: function(result) {
+						window.location = next_url;
+					},
+					dataType: 'json',
+					error: function(xhr, textStatus, error) {
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+					}
+				});
+			}
+		});
+		// View Recipients
+		j$(document).on('click', '#jSummaryStatement #jRecipientsSummary', function(e) {
+			e.preventDefault();
+			TVAPP.modal.open(
+				'campaign_summary_recipients',
+				{ 'campaign_id': campaign_id },
+				{ context: 'Campaign.id=' + campaign_id }
+			);
+		});
+		// View Job Filters
+		j$(document).on('click', '#jSummaryStatement #jJobFiltersSummary', function(e) {
+			e.preventDefault();
+			TVAPP.modal.open(
+				'campaign_summary_job_filters',
+				{ 'campaign_id': campaign_id },
+				{ context: 'Campaign.id=' + campaign_id + '&JobSearch.id=' + job_search_id }
+			);
+		});
+		// View Jobs
+		j$(document).on('click', '#jSummaryStatement #jJobsSummary', function(e) {
+			e.preventDefault();
+			TVAPP.modal.open(
+				'campaign_summary_jobs',
+				{ 'campaign_id': campaign_id },
+				{ context: 'Campaign.id=' + campaign_id + '&editable=true' }
+			);
+		});
+		// View Pages
+		j$(document).on('click', '#jSummaryStatement #jPagesSummary', function(e) {
+			e.preventDefault();
+
+			TVAPP.modal.open(
+				'campaign_summary_pages',
+				{ 'campaign_id': campaign_id },
+				{ context: 'Campaign.id=' + campaign_id + '&editable=true' }
+			);
+		});
+	}
+	/*------END CAMPAIGN FUNCTIONS--------*/
+
+	// refresh user bindings
+	var refreshUserBindings = function(){
+		j$.log("job_list.js refresh");
+	};
+	refreshUserBindings();
+	j$(document).on("refreshUserBindings",refreshUserBindings);
+
+	function handleCreateCustomPageModalInitialize(e,data){
+		var $submit_btn = j$('.jSubmitCreatePage', '#colorbox');
+		j$('#jSearchId', '#colorbox').val(data.search_id);
+		$submit_btn.on('click', function(event){
+			j$('.jCustomPageForm', '#colorbox').trigger('submit');
+		});
+		j$('.jCustomPageForm', '#colorbox').on('submit', function(event){
+			event.preventDefault();
+			var currForm = j$('.jCustomPageForm').validate(
+				{
+					rules: {
+						"title" : {required:true}
+					},
+					messages: {
+						"title" : TVAPP.smDict('FieldError.default_required')
+					},
+					errorElement:"div",
+					errorClass: "error",
+				}
+			);
+			if( j$('.jCustomPageForm').valid() ){
+				j$($submit_btn).spin({
+					lines: 12, // The number of lines to draw
+					radius: 5, // The radius of the inner circle
+					color: '#6E6E6E', // #rgb or #rrggbb
+					zIndex: 99, // The z-index (defaults to 2000000000)
+					top: -3, // Top position relative to parent in px
+					left: 'auto' // Left position relative to parent in px
+				}).addClass('load_btn');
+				j$('.jCloseModal','#colorbox').hide();
+				j$.ajax({
+					type: 'POST',
+					dataType: 'json',
+					data: j$('.jCustomPageForm').serialize(),
+					url: TVAPP.guid('/ajax/landingpages/create/'),
+					success: function(data, textStatus, xhr){
+						window.location = data.Result.url;
+					},
+					error: function(xhr, textStatus,error){
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+						j$('.spinner','.jSubmitCreatePage').remove();
+						j$('.jSubmitCreatePage').removeClass('load_btn');
+						j$('.jCloseModal','#colorbox').show();
+					}
+				});
+			}
+		});
+	}
+	j$(document).bind('create_custom_page_modal_init', handleCreateCustomPageModalInitialize);
+	function initFilters(results_content) {
+		// define results
+		results_content = results_content || j$('#jResultsArea .jResultsContent:first').addClass('jResultsActive');
+		// initialize placeholders for IE
+		j$('#filter_search input[name="keywords"], #filter_geo_location input[name="geo_location"], input.add_facet').placeholder();
+		// bind campaign add
+		if (!TVAPP.isEmpty(campaign_id)) j$('.jCampaignAdd', results_content).removeAttr('disabled');
+
+		// Flag filters legend popover
+		j$('.jPopover', results_content).clickover({
+			placement: TVAPP.property.fb ? 'right' : 'top',
+			title: 'legend_pops font_nav',
+			content: TVAPP.ajaxIncludeContent({
+				template: 'job_icon_legend_popover',
+				context: 'video_exists=' + (j$('.flg_filter_hldr').hasClass('no_video') ? '0' : '1')
+			}),
+			html: true,
+			animation: false,
+			onShown:function(){
+				j$('.jPopover', results_content).attr('aria-describedby', 'legendPanel');
+			},
+			onHidden : function(){
+				j$('.jPopover', results_content).attr('aria-describedby','filterLegendLabel');
+			}
+		});
+		// Flag filters on/off handler
+		j$('.jJobsFilter', results_content).click(function(event) {
+			event.preventDefault();
+
+			var form = j$(event.currentTarget)
+
+			loadingState({'update_existing':true});
+
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid(form.data('action')),
+				success: function(result) {
+					job_search_id = result.Result;
+					j$.log('job_search_id: ' + job_search_id);
+					loadSearchResults({'job_search_id':job_search_id,'update_existing':true});
+				},
+				dataType: 'json',
+				error: function(xhr, textStatus, error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});
+		});
+
+		// Keyword Search initialization
+		j$('.jKeywordSearch').submit(function(e) {
+			e.preventDefault();
+			var curform = j$(this);
+			loadingState();
+			j$.ajax({
+				url: curform.attr('action'),
+				data: curform.serialize(),
+				dataType: 'json',
+				success: function(response) {
+					job_search_id = response.Result;
+					j$.log('job_search_id: ' + job_search_id);
+					loadSearchResults({'job_search_id':job_search_id});
+				}
+			});
+		});
+
+		// Auto-Suggest for geolocation field
+		j$.widget('custom.geocomplete', j$.ui.autocomplete, {
+			_renderMenu: function(ul, items) {
+				var self = this;
+				ul.attr('id', j$(this.element).attr('id') + '_search').addClass('facetsearch');
+				j$.each(items, function(index, item) {
+					self._renderItem(ul, item);
+				});
+			},
+			_renderItem: function(ul, item) {
+				var bucket = item.facet_name;
+				var tmp = j$( '<li class="li_location"></li>').append("<a href='#'>" + item.location + "</a>");
+				tmp.data( "ui-autocomplete-item", item ).appendTo( ul );
+				return tmp;
+			}
+		});
+		j$('.jLocInput', results_content).geocomplete({
+			minLength: 1,
+			autoFocus: true,
+			source: function(request, response) {
+				var holdit = [],
+					elem = j$(this.element),
+					url = '/ajax/geolocation/auto-suggest';
+				// AJAX fails for empty geolocation query, so disable it
+				if (TVAPP.isEmpty(j$.trim(request.term))) return false;
+				j$.log("REQUEST: "+ JSON.stringify(request));
+				j$.post(
+					url+'?keywords='+encodeURIComponent(j$.trim(request.term)),
+					function(result) {
+						if(result.Status == "OK") {
+							holdit = result.Result;
+						} else {
+							holdit = result.Error.GeneralError;
+						}
+						response(holdit);
+					},
+					'json'
+				);
+
+			},
+			focus: function(event, ui) {
+				event.preventDefault();
+				return false;
+			},
+			select: function(event, ui) {
+				event.preventDefault();
+				var this_input = j$(this);
+				this_input.parent().removeClass('jSubmitDisabled');
+				this_input.siblings('#jGeoData').data({
+					'geo_lat': ui.item.lat,
+					'geo_long': ui.item['long'],
+					'id': ui.item.id,
+					'geo_location': ui.item.location,
+					'geo_level': ui.item.level,
+					'geo_area_id': ui.item.area_Id,
+					'geo_region_area_id': ui.item.region_area_id,
+					'geo_country_area_id': ui.item.country_area_id
+				});
+				this_input.val(ui.item.location);
+				this_input.blur(); // fix ie8 refocusing issue
+				this_input.parent().submit();
+				return false;
+			}
+		});
+
+		// Geolocation input blur binding
+		var errorTimeout;
+		j$('.jLocInput', results_content).blur(function() {
+			var $this = j$(this),
+				$form = $this.parent(),
+				$geoData = j$('#jGeoData');
+			// if autocomplete is still open, do nothing (IE8 bug)
+			if(j$('#geo_location_search').is(':visible')) {
+				return true;
+			}
+			// if value is blank allow it
+			if ($this.val() == '' || $this.val() == $this.attr('placeholder')) {
+				$form.removeClass('jSubmitDisabled');
+			// if the value is not autosuggested show a warning
+			} else if ($form.hasClass('jSubmitDisabled')) {
+				clearTimeout(errorTimeout);
+				$this.siblings('.jGeoLocationError').slideDown('fast');
+				errorTimeout = setTimeout(function() {
+					$this.siblings('.jGeoLocationError').slideUp('fast');
+				}, 4000);
+			}
+		// add select and suggest on focus
+		}).focus(function(){
+		    j$(this).one('mouseup', function() {
+		        j$(this).select();
+		    });
+		    j$(this).geocomplete('search', j$(this).val());
+		// handle user typing
+		}).bind('keyup', function(e) {
+			var $this = j$(this),
+				$form = $this.parent(),
+				original_val = j$('#jGeoData').data('geo_location'),
+				key_code = (e.keyCode ? e.keyCode : e.which);
+			if (key_code == 13) { // handle enter key
+				$this.blur();
+				$form.submit();
+			} else if (j$.inArray(key_code, [37,38,39,40]) != -1) { // handle direction keys
+				return true;
+			} else if (!$form.hasClass('jSubmitDisabled') && $this.val() != original_val && $this.val() != '') { // handle custom update
+				$form.addClass('jSubmitDisabled');
+			} else if ($this.val() == original_val || $this.val() == '') { // handle retype selected value
+				$form.removeClass('jSubmitDisabled');
+			}
+		});
+
+		// submit function binding
+		j$('.jGeoLocationSearch', results_content).submit(function(event) {
+			event.preventDefault();
+			var loc_input = j$('.jLocInput'),
+				loc_val = loc_input.val(),
+				$form = j$(this),
+				action = $form.attr('action'),
+				data = {};
+			if ($form.hasClass('jSubmitDisabled')) {
+				loc_input.blur();
+				return false;
+			}
+			if (loc_input.hasClass('placeholder') && loc_val == loc_input.attr('placeholder')) loc_val = '';
+
+			if(loc_val == '') {
+				action = action.replace('add','remove');
+			} else {
+				j$.extend(data,loc_input.siblings('#jGeoData').data());
+				// if radius or units are missing, load the defaults
+				if(data['distance']=='' || data['units']==''){
+					// decide which units to search in
+					if(TVAPP.property.geoSearch.radius.userControl && TVAPP.readCookie(TVAPP.property.cookie_prefix+"geo_search_radius_units") != null) {
+						data['units'] = TVAPP.readCookie(TVAPP.property.cookie_prefix+"geo_search_radius_units");
+					} else {
+						data['units'] = TVAPP.property.geoSearch.radius.metric ? 'km' : 'mi';
+					}
+					// apply default radius based on selected units
+					data['distance'] = data['units']=='km' ? TVAPP.property.geoSearch.radius['default'] : (TVAPP.property.geoSearch.radius['default']*1.61).toFixed(2); // set default
+				}
+				data['geo_location'] = loc_input.val();
+			}
+
+			j$(document).trigger('loadingState');
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid(action),
+				data: data,
+				success: function(result){
+					job_search_id = result.Result;
+					j$.log('job_search_id: ' + job_search_id);
+					// Load results
+					j$(document).trigger('loadSearchResults', {'job_search_id':job_search_id});
+				},
+				dataType: 'json',
+				error: function(xhr, textStatus, error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});
+		});
+
+		// bind geo radius unit switch
+		j$('.jRadiusUnitSwitch span').click(function(){
+			if(j$(this).hasClass('active')) return false;
+			TVAPP.createCookie(TVAPP.property.cookie_prefix + 'geo_search_radius_units', j$(this).data('value'));
+			loadingState({'update_existing':true});
+			var units = j$(this).data('value');
+			var distance = j$('.selected','#jGeoRadiusSelector').data('value');
+			if (units == 'mi') distance = Math.round(distance*1.61);
+			var data = j$.extend({},j$('#jGeoData').data(),{'units': units, 'distance': distance});
+			j$.ajax({
+				url: TVAPP.guid(j$(this).parent().data('action')),
+				data: data,
+				success: function(response) {
+					job_search_id = response.Result;
+					j$.log('job_search_id: ' + job_search_id);
+					loadSearchResults({'job_search_id':job_search_id,'update_existing':true});
+				},
+				dataType: 'json'
+			});
+		});
+
+		// select the search radius
+		j$('#jGeoRadiusSelector').children().each(function(){
+			var radius = j$('#jGeoRadiusSelector').data('units')=='km' ? results_content.data('geo_search_radius_km') : Math.round(results_content.data('geo_search_radius_km')/1.61);
+			if(j$(this).data('value') == radius) j$(this).addClass('selected');
+		});
+
+		// if the currently selected radius is not present, programatically add it
+		if(!j$('#jGeoRadiusSelector').children('.selected').length && results_content.data('geo_search_radius_km') != '') {
+			var radius = j$('#jGeoRadiusSelector').data('units')=='km' ? results_content.data('geo_search_radius_km') : Math.round(results_content.data('geo_search_radius_km')/1.61);
+			j$('#jGeoRadiusSelector').children().last().clone() // clone last radius button
+				.data('value',radius) // update the data
+				.text(radius) // update the text
+				.addClass('selected').appendTo(j$('#jGeoRadiusSelector')); // add selected and inject the content
+				j$('#jResultsArea').data('default_search_radius', radius);
+		} else if(results_content.data('geo_search_radius_km') != '' && !!j$('#jResultsArea').data('default_search_radius')) {
+			var radius = j$('#jGeoRadiusSelector').data('units')=='km' ? j$('#jResultsArea').data('default_search_radius') : Math.round(j$('#jResultsArea').data('default_search_radius')/1.61);
+			j$('#jGeoRadiusSelector').children().last().clone()
+				.data('value',radius)
+				.text(radius)
+				.removeClass('selected').appendTo(j$('#jGeoRadiusSelector'));
+		}
+
+		// bind geo radius selector buttons
+		j$('#jGeoRadiusSelector').children().click(function(){
+			if(j$(this).hasClass('selected')) return false;
+			loadingState({'update_existing':true});
+			var radius = j$(this).parent().data('units')=='km' ? j$(this).data('value') : j$(this).data('value')*1.61,
+				data = j$.extend({},j$('#jGeoData').data(),{'units': j$(this).parent().data('units'), 'distance': radius});
+
+			j$.ajax({
+				url: TVAPP.guid(j$(this).parent().data('action')),
+				data: data,
+				success: function(response) {
+					job_search_id = response.Result;
+					j$.log('job_search_id: ' + job_search_id);
+					loadSearchResults({'job_search_id':job_search_id,'update_existing':true});
+				},
+				dataType: 'json'
+			});
+		});
+
+		/*-- Custom Auto-Suggest for Adding Attributes to Facets --*/
+		j$.widget('custom.facetcomplete', j$.ui.autocomplete, {
+			_renderMenu: function(ul, items) {
+				var self = this;
+				ul.attr('id', j$(this.element).attr('id') + '_search').addClass('facetsearch');
+				ul.append('<li class="ui-autocomplete-category"><div>' + TVAPP.smDict('Jobs.Search.add_filter') + '</div></li>');
+				j$.each(items, function(index, item) {
+					self._renderItem(ul, item);
+				});
+			},
+			_renderItem: function(ul, item) {
+				var bucket = item.action,
+					icn_btn = '<span class="add_usr_btn"><span class="icn">+</span> ' + TVAPP.smDict('global.add') + '</span>';
+				if (j$('.li_' + bucket, ul).length < 5 && item.facet_uri != 'already_added') {
+					var tmp = j$('<li class="li_' + bucket + '"></li>').append('<a href="' + item.facet_uri + '">' + icn_btn + item.attribute_name + ' (' + item.total_count + ')' + '</a>');
+					tmp.data('ui-autocomplete-item', item).appendTo(ul);
+					return tmp;
+				}
+			}
+		});
+
+		// Facet auto-suggest initialization
+		j$('input.jAddFacet', results_content).facetcomplete({
+			minLength: 2,
+			source: function(request, response) {
+				var data = {},
+					holdit = [],
+					self = this.element;
+
+				j$.log('REQUEST: ' + JSON.stringify(request));
+
+				if (campaign_id != '') {
+					data = { 'Campaign.id': campaign_id };
+				} else if (job_search_id > 0) {
+					data = { 'JobSearch.id': job_search_id };
+				}
+
+				j$.post(
+					j$(self).parent('.jAddFacetSearch').attr('action') + '?keywords=' + encodeURIComponent(request.term),
+					data,
+					function(result) {
+						if(result.Status == 'OK') {
+							holdit = result.Result;
+						} else {
+							holdit = result.Error.GeneralError;
+						}
+
+						j$.log("holdit 1: " + JSON.stringify(holdit));
+
+						response(holdit);
+					},
+					'json'
+				);
+			},
+			select: function(event, ui) {
+				event.preventDefault();
+
+				j$(this).val('').blur();
+
+				var filter_href = '/ajax' + ui.item.facet_uri;
+
+				j$(document).trigger('loadingState',{'update_existing':true});
+
+				j$.ajax({
+					type: 'POST',
+					url: TVAPP.guid(filter_href),
+					success: function(result) {
+						job_search_id = result.Result;
+						j$.log('job_search_id: ' + job_search_id);
+
+						j$(document).trigger('loadSearchResults', {'job_search_id':job_search_id,'update_existing':true});
+					},
+					dataType: 'json',
+					error: function(xhr, textStatus, error) {
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+					}
+				});
+
+				return false;
+			},
+			open: function(event, ui) {
+				//j$(".facetsearch").css('top',function(index, value) {return 3+parseInt(value)}); // Push menu down 3px
+			}
+		});
+
+		// Facet filter add/remove link handler
+		j$('.jFilterRowLink', results_content).click(function(e) {
+			e.preventDefault();
+
+			var filter_href = j$(this).data('href');
+
+			loadingState({'update_existing':true});
+
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid(filter_href),
+				success: function(result) {
+					job_search_id = result.Result;
+					j$.log('job_search_id: ' + job_search_id);
+
+					loadSearchResults({'job_search_id':job_search_id,'update_existing':true});
+				},
+				dataType: 'json',
+				error: function(xhr, textStatus, error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});
+		});
+
+		// Facet 'View More' link handler
+		j$('.jFacetViewMore', results_content).click(function(event) {
+			event.preventDefault();
+
+			var facet_name = j$(this).data('facet'),
+				context = '?sort_by=name&sort_order=asc&BizObjectSetStore=JobSearch&SelectedFacetFilterStore=JobSearch';
+
+			if (campaign_id != '') {
+				context += '&Campaign.id=' + campaign_id;
+			}
+			if (TVAPP.property.fb) {
+				context += '&fb=true';
+			}
+
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid('/jobs/' + job_search_id + '/facets/' + facet_name + '/view-more' + context),
+				success: function(result) {
+					TVAPP.modal.open('facet_values_view_more', {}, { 'content': result });
+				},
+				error: function(xhr, textStatus, error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});
+		});
+
+		// Facet 'View More' modal initialization
+		function handleFacetMoreInitialize(e, data) {
+			data = data || {};
+			var modal = j$('#cboxLoadedContent'),
+				modal_form = j$('#jFacetViewMore', modal),
+				facet_name = j$('.jFacetName', modal).val();
+
+			if (j$('.jJobSearchId', modal).length) {
+				job_search_id = j$('.jJobSearchId', modal).val();
+			}
+			if (j$('.jCampaignId',modal).length) {
+				campaign_id = j$('.jCampaignId', modal).val();
+			}
+
+			if(!TVAPP.isEmpty(data.selected_chex)) {
+				var chex_array = data.selected_chex.split(',');
+
+				j$(chex_array).each(function(index,val) {
+					j$('#jFacetCheck_' + val).attr('checked', 'checked');
+				});
+			}
+
+			j$('#jFacetMoreSubmit', modal).unbind('click').click(function() {
+				var facet_chex = j$('input[name="facet_checkbox"]:checked:not(:disabled)').valList();
+
+				j$('.modal_actions, .jCloseModal', modal).hide();
+
+				j$('.modal_filter_hldr', modal).css({
+					height: 60,
+					width: 60,
+					position: 'relative',
+					left: 180
+				}).empty().spin({
+					lines: 17, // The number of lines to draw
+					length: 2, // The length of each line
+					width: 4, // The line thickness
+					radius: 10, // The radius of the inner circle
+					rotate: 0, // The rotation offset
+					color: '#868686', // #rgb or #rrggbb
+					speed: 1, // Rounds per second
+					trail: 60, // Afterglow percentage
+					shadow: false, // Whether to render a shadow
+					hwaccel: false, // Whether to use hardware acceleration
+					className: 'spinner', // The CSS class to assign to the spinner
+					zIndex: 500, // The z-index (defaults to 2000000000)
+					top: 'auto', // Top position relative to parent in px
+					left: 'auto' // Left position relative to parent in px
+				});
+
+				j$.colorbox.resize();
+
+				if (facet_chex == '') {
+					j$('.jCloseModal', modal).click();
+				} else {
+					loadingState({'update_existing':true});
+
+					j$.ajax({
+						type: 'POST',
+						url: TVAPP.guid(modal_form.attr('action') + facet_chex),
+						success: function(result) {
+							job_search_id = result.Result;
+							j$.log('job_search_id: ' + job_search_id);
+							TVAPP.modal.close();
+							loadSearchResults({'job_search_id':job_search_id,'update_existing':true});
+						},
+						dataType: 'json',
+						error: function(xhr, textStatus, error) {
+							TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+						}
+					});
+				}
+			});
+			
+			j$('.jSelectAll').attr({
+				'aria-label': j$('.jSelectAll').data('labelSelectAll')
+			});
+			// Facet select all
+			j$('.jSelectAll', modal).unbind('click').click(function(event) {
+				event.preventDefault();
+				if(j$(this).data('select') == 'none') {
+					j$('input[name="facet_checkbox"]:not(:disabled)', modal).prop('checked', false);
+					j$(this).data('select', 'all');
+					j$(this).attr('aria-label', j$(this).data('labelSelectAll'));
+				} else {
+					j$('input[name="facet_checkbox"]:not(:disabled)', modal).prop('checked', true);
+					j$(this).data('select', 'none');
+					j$(this).attr('aria-label', j$(this).data('labelUnselectAll'));
+				}
+			});
+
+			// Facet sort
+			var context = '?BizObjectSetStore=JobSearch&SelectedFacetFilterStore=JobSearch';
+			if (campaign_id != '') {
+				context += '&Campaign.id=' + campaign_id;
+			}
+			if (TVAPP.property.fb) {
+				context +='&fb=true';
+			}
+			j$('.jOrderByNum', modal).unbind('click').click(function(event) {
+				event.preventDefault();
+				var selected_chex = j$('input[name="facet_checkbox"]:checked:not(:disabled)').valList();
+				context += '&sort_by=count&sort_order=desc';
+
+				j$.ajax({
+					type: 'POST',
+					url: TVAPP.guid('/jobs/' + job_search_id + '/facets/' + facet_name + '/view-more' + context),
+					success: function(result) {
+						TVAPP.modal.open('facet_values_view_more', {}, { 'content': result, 'selected_chex': selected_chex });
+					},
+					error: function(xhr, textStatus, error) {
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+					}
+				});
+			});
+			j$('.jOrderByName', modal).unbind('click').click(function(event) {
+				event.preventDefault();
+				var selected_chex = j$('input[name="facet_checkbox"]:checked:not(:disabled)').valList();
+				context += '&sort_by=name&sort_order=asc';
+
+				j$.ajax({
+					type: 'POST',
+					url: TVAPP.guid('/jobs/' + job_search_id + '/facets/' + facet_name + '/view-more' + context),
+					success: function(result){
+						TVAPP.modal.open('facet_values_view_more', {}, { 'content': result, 'selected_chex': selected_chex });
+					},
+					error: function(xhr, textStatus, error) {
+						TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+					}
+				});
+			});
+		};
+		j$(document).bind('facet_values_view_more_init', handleFacetMoreInitialize);
+	}
+	if (j$('.jResultsContent').length) initFilters();
+
+	function initPagination(results_content) {
+		results_content = results_content || j$('#jResultsArea .jResultsContent:first');
+
+		var num_pages = Math.floor(j$('#jPaginateNumPages', results_content).text()),
+			curr_page = Math.floor(j$('#jPaginateCurrPage', results_content).text()),
+			page_url_stem = '#'; // window.location.pathname.replace("/page"+curr_page,"") + "/";
+
+		if (num_pages == 1) {
+			j$('.jPaginationHldr', results_content).hide();
+		} else {
+			var pagingFormat = j$('body').hasClass('mobile') ? "< (q-) ncn (-p) >" : "< (q-) nnncnnn (-p) >";
+
+			j$('.jPagination', results_content).paging(num_pages, {
+				format: pagingFormat,
+				perpage: 1,
+				page: curr_page,
+				onSelect: function(page) {
+					return false;
+				},
+				onFormat: function(type) {
+					switch (type) {
+					case 'block': // n and c
+						if(this.value == this.page) {
+							return '<span class="current" aria-label="current"><span class="padding">'+this.value+'</span></span>';
+						}
+						return '<a href="' + page_url_stem + 'page' + this.value + '"><span class="padding">'+this.value+'</span></a>';
+					case 'next': // >
+						if (!this.active) {
+							return '<span class="current next"><span class="padding">&#8250;</span></span>';
+						}
+						return '<a class="next" href="' + page_url_stem + 'page' + this.value + '" aria-label="next"><span class="padding">&#8250;</span></a>';
+					case 'prev': // <
+						if (!this.active) {
+							return '<span class="current prev"><span class="padding">&#8249;</span></span>';
+						}
+						return '<a class="prev" href="' + page_url_stem + 'page' + this.value + '" aria-label="previous"><span class="padding">&#8249;</span></a>';
+					case 'first': // [
+						if (this.active) {return '<a href="' + page_url_stem + 'page' + this.value + '"><span class="padding">'+this.value+'</span></a>';}
+						return "";
+					case 'last': // ]
+						if (this.active) {return '<a href="' + page_url_stem + 'page' + this.value + '"><span class="padding">'+this.value+'</span></a>';}
+						return "";
+					case 'fill':
+						if (this.active) {return "<span>...</span>";}
+						return "";
+					case 'right': // p
+						if (!this.active) {
+							return "";
+						}
+						return '<a href="' + page_url_stem + 'page' + this.value + '"><span class="padding">'+this.value+'</span></a>';
+					case 'left': // q
+						if (!this.active) {
+							return "";
+						}
+						return '<a href="' + page_url_stem + 'page' + this.value + '"><span class="padding">'+this.value+'</span></a>';
+					}
+				}
+			});
+
+			j$('.jPagination a', results_content).unbind('click').click(function(e) {
+				e.preventDefault();
+
+				var page = j$(this).data('page');
+
+				if (page != curr_page) {
+					var data = {'job_search_id':job_search_id,'page':page,'update_existing':true};
+					loadingState(data);
+					loadSearchResults(data);
+				}
+			});
+
+		}
+	}
+	if (j$('.jResultsContent').length) initPagination();
+
+	// A few shared variables for loading results
+
+	var	cat_input = j$('.jCatInput'),
+		loc_input = j$('.jLocInput'),
+		search_submit = j$('#jSearchSubmit'),
+		content_header = j$('.jContentHeader');
+
+	function loadingState(data) {
+		data = data || {};
+		// animate page scroll to top
+		j$('html, body').animate({ scrollTop: 0 }, 'slow');
+		if (TVAPP.property.fb && fbScrollTo) {
+			fbScrollTo(0);
+		}
+
+		// end mylocation spinner
+		j$(document).trigger('endMyLocationAnimation');
+
+		// trigger search banner loading
+		j$(document).trigger('searchBannerLoading',data);
+
+		// hide any open autocompletes
+		j$('.ui-autocomplete-input').blur();
+
+		// get displayed results
+		var current_results = j$('.jResultsActive', '#jResultsArea');
+
+		if (current_results.length) {
+			// fade content header
+			if (j$('.jContentHeader').length) j$('.jContentHeader').fadeTo(500,0.5);
+
+			// add spinners to facets
+			j$('.jFilterRowHldr', current_results).each(function() {
+				var this_overlay = j$(this).find('.jFilterLoadOverlay');
+
+				if (this_overlay.length) {
+					this_overlay.show();
+				} else {
+					var overlay = j$('<div class="filter_load_overlay jFilterLoadOverlay"></div>');
+					overlay.appendTo(j$(this)).spin({
+						lines: 17, // The number of lines to draw
+						length: 2, // The length of each line
+						width: 4, // The line thickness
+						radius: 10, // The radius of the inner circle
+						color: '#868686', // #rgb or #rrggbb
+						trail: 60, // Afterglow percentage
+						zIndex: 500 // The z-index (defaults to 2000000000)
+					});
+				}
+			});
+
+			// trigger previous search list loading
+			loadingPreviousSearchList(data);
+
+
+		// if no results, treat spotlight as current results
+		} else {
+			current_results = j$('#jSpotlightHldr');
+			// trigger loading state of block regions
+			j$(document).trigger('blockRegionLoading',data);
+		}
+
+		// fade current results
+		current_results.fadeTo(500, 0.5);
+
+	}
+	j$(document).on('loadingState', function(event, data) { loadingState(data); });
+
+	function blockRegionLoading(data) {
+		// hide/reload all block regions
+		j$('.jBlockRegion').each(function() {
+			var $region = j$(this);
+			// handle 'top' as special case due to job search banner animation
+			if ($region.data('area') == 'top' && $region.find('#job_search_banner').length) {
+				$region.find('#job_search_banner').parent().siblings().slideUp(500, function() {
+					j$(this).remove();
+				});
+			} else if ($region.data('area') == 'top') {
+				$region.slideUp(500);
+			} else {
+				$region.fadeTo(500, 0.0);
+			}
+		});
+	}
+	j$(document).on('blockRegionLoading', function(event, data) { blockRegionLoading(data); });
+
+	// function to find existing or get new search results
+	function loadSearchResults(data) {
+		j$(document).trigger('trackPage', { url: '/ga/ajax/portal/ViewJobs' }); // Please improve this_link
+
+		// set defaults
+		var data = j$.extend({force_refresh:false, page:1},data),
+			cached_results = j$('#jResultsArea .jResultsContent[data-jsid="' + data.job_search_id + '"]').filter(function() {
+				if (Math.floor(j$(this).find('#jPaginateCurrPage').text()) == data.page) return true;
+			});
+		// update global jsid
+		job_search_id = data.job_search_id;
+
+		// update body class to reflect new page layout
+		j$('body').removeClass('portal').addClass('job_list');
+
+		// clean up cache if needed
+		if (data.force_refresh && cached_results.length && !cached_results.hasClass('jResultsActive')) cached_results.remove();
+
+		// load new blocks if needed
+		if (!j$('.jResultsActive', '#jResultsArea').length) {
+			j$('.jBlockRegion').each(function() {
+				var $region = j$(this);
+				if ($region.data('area') == 'top' && $region.find('#job_search_banner').length) {
+					var $job_search_banner = $region.find('#job_search_banner').parent();
+					TVAPP.ajaxIncludeContent({
+						template:"block_loop",
+						context:'page_short_name=job_list&area_short_name=top&search_results=true&JobSearch.id='+job_search_id,
+						async: true,
+						success: function(response, data) {
+							var $newBlocks = j$(j$.parseHTML(j$.trim(response)));
+							var $prevBlocks = $newBlocks.find('#job_search_banner').parent().prevAll();
+							var $nextBlocks = $newBlocks.find('#job_search_banner').parent().nextAll();
+							// if blocks than search banner exist, apply bindings
+							if($prevBlocks.length !== 0 || $nextBlocks.length !== 0){
+								$prevBlocks.hide().insertBefore($job_search_banner);
+								$nextBlocks.hide().insertBefore($job_search_banner);
+								j$(document).trigger("refreshBlockBindings", $prevBlocks.add($nextBlocks));
+							}
+						}
+					});
+					//refresh the template, for proper rendering of blocks, with latest block-ids.
+					TVAPP.refreshBlockRegion($region, { page: 'job_list' });
+					//addariaforallcapsules();
+				} else {
+					TVAPP.refreshBlockRegion($region, {
+						page: 'job_list'
+					});
+				}
+			});
+		}
+
+		// load new results and display them
+		if (cached_results.length && !data.force_refresh) {
+			// Load cached results
+			j$.log('load cached results');
+			// move the requested results to the top (so it doesnt get erased prematurely)
+			cached_results.prependTo('#jResultsArea');
+			// display the new results
+			displayLoadedResults(cached_results, data);
+		} else {
+			// Load new results
+			var context = 'JobSearch.id=' + data.job_search_id;
+			if (TVAPP.property.fb) context += '&fb=true';
+			if (campaign_id) context += '&Campaign.id=' + campaign_id + '&campaign_page=2';
+			if (data.page) context += '&page_index=' + data.page;
+
+			// Sync load is bad news bears. instead, let's async and callback:
+			j$.ajax({
+				type: 'POST',
+				url: TVAPP.guid('/ajax/content/job_results?' + context + '&site-name=' + TVAPP.property.site.short_name + '&include_site=true'),
+				dataType: 'json',
+				success: function(response) {
+					var new_results = j$(response.Result);
+					new_results.prependTo('#jResultsArea').hide();
+ 					// keep cache to a max of 5 recent searches
+					if (j$('.jResultsContent', '#jResultsArea').length > 5) {
+						j$('.jResultsContent:last', '#jResultsArea').remove();
+					}
+					// initialize the new results
+					initFilters(new_results);
+					initPagination(new_results);
+
+					// display the new results
+					displayLoadedResults(new_results, data);
+				},
+				error: function(xhr, textStatus,error) {
+					TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+				}
+			});
+		}
+	};
+
+	j$(document).on('loadSearchResults', function(event, data) { loadSearchResults(data); });
+
+	// UI transitions to load new results and update data
+	function displayLoadedResults(new_results, data) {
+		var activeElementBeforeReload = document.activeElement;
+		data = data || {};
+		var wasPortal = false;
+		// update active classes
+		if (j$('.jResultsActive', '#jResultsArea').length) {
+			var old_results = j$('.jResultsActive', '#jResultsArea').removeClass('jResultsActive');
+		} else {
+			if(j$('#jSpotlightHldr'))
+			// check if the featured jobs is turned off and on the page
+			var old_results = j$('#jSpotlightHldr').length === 0 ? j$('<div id="jSpotlightHldr"></div>').insertAfter('#jResultsArea') : j$('#jSpotlightHldr') ;
+			wasPortal = true;
+		}
+		new_results.addClass('jResultsActive');
+
+		// update visible search values
+		content_header.fadeOut(500, function() {
+			j$('.jSearchTitle').text(new_results.data('keyword-string'));
+			j$('.jSearchSubtitle').text(new_results.data('location-string'));
+			content_header.css('opacity', '').fadeIn(500);
+		});
+
+		// complete the transition to the new results
+		old_results.fadeOut(500, function() {
+			old_results.css('opacity', '');
+
+			var	new_uri = '';
+			if (TVAPP.property.fb) {
+				new_uri = '/fb/jobs/search/' + (data.job_search_id ? data.job_search_id : 'all') + ((data.page != 1) ? ('/page' + data.page) : "");
+				TVAPP.createCookie(TVAPP.property.cookie_prefix + 'jobs_search_id', new_uri);
+			} else {
+				new_uri = TVAPP.property.referrer_code_prefix + '/jobs/search/' + data.job_search_id + ((data.page != 1) ? ('/page' + data.page) : "");
+			}
+			// Update history API
+			if (!campaign_id && History.enabled) {
+				var current_state_jsid = parseInt(History.getState().data.job_search_id),
+					current_state_page = parseInt(History.getState().data.job_search_page);
+				if (!(current_state_jsid >= 0) || (current_state_jsid != data.job_search_id) || (current_state_page != data.page)) {
+					History.pushState({ 'job_search_id': data.job_search_id, 'job_search_page': data.page }, document.title, new_uri);
+				}
+			}
+
+			// reveal the new blocks
+			if (wasPortal) {
+				j$('.jBlockRegion').each(function() {
+					var $region = j$(this);
+					if ($region.data('area') == 'top' && $region.find('#job_search_banner').length) {
+						$region.find('.block').slideDown(500);
+					} else if ($region.data('area') == 'top') {
+						$region.slideDown(500);
+					} else {
+						$region.fadeTo(500,1.0);
+					}
+				});
+			} else {
+				// update previous searches list
+				j$(document).trigger('updatePreviousSearchList', data);
+			}
+
+			// update banner search values
+			j$(document).trigger('searchBannerUpdate', data);
+
+			// hide any filter loading overlays
+			new_results.find('.jFilterLoadOverlay').hide();
+
+			if(TVAPP.property.fb) {
+				new_results.css('opacity', '').fadeIn(500, function(){
+					j$(document).trigger('update_fb_canvas');
+				});
+			} else {
+				new_results.css('opacity', '').fadeIn(500, function(){
+					enableFocusOnElementsAfterReload(activeElementBeforeReload);
+					});
+
+				// Remove old results if in Campaign or forcing a refresh
+				if ((campaign_id) || (data.force_refresh && old_results.data('jsid') == data.job_search_id)) {
+					old_results.remove();
+				}
+			}
+		});
+	}
+
+	var enableFocusOnElementsAfterReload = function(activeElementBeforeReload) {
+		var activeElementBeforeReloadAriaLabelAttribte = j$(activeElementBeforeReload).attr('aria-label');
+		if (activeElementBeforeReloadAriaLabelAttribte!=null) {
+			var activeElementAfterReload = j$('.jResultsActive').find(".checkbox_hldr").children("[aria-label='"+activeElementBeforeReloadAriaLabelAttribte+"']");
+			if (activeElementAfterReload.length > 0) {
+				j$(activeElementAfterReload).focus();
+			}
+		}
+	}
+	
+	var loadingPreviousSearchList = function(data) {
+		data = data || {};
+		var	previous_searches = j$('.jPreviousSearches'),
+			capsule_rows = j$('.jCapsuleRow', previous_searches);
+		previous_searches.find('a[data-jsid="'+data.job_search_id+'"]').parents('.jCapsuleRow').addClass('active');
+		if(!data.update_existing) {
+			capsule_rows.not('.active').fadeTo(500, 0.5);
+		}
+	};
+
+	var updatePreviousSearchList = function(data) {
+		var previous_searches = j$('.jPreviousSearches'),
+			capsule_rows = j$('.jCapsuleRow', previous_searches),
+			new_results = j$('.jResultsActive', '#jResultsArea'),
+			active_row = j$('.jCapsuleRow.active', previous_searches),
+			search_text = new_results.data('keyword-string'),
+			location_text = new_results.data('location-string'),
+			location_text_short = new_results.data('location-string-short');
+
+		// make sure search title and location strings have values
+		if (search_text == '') search_text = TVAPP.smDict('global.all_jobs');
+		if (location_text == '') location_text = TVAPP.smDict('global.all_locations');
+		if (location_text_short == '') location_text_short = TVAPP.smDict('global.all_locations');
+
+		if (active_row.length == 0) { active_row = previous_searches.find('a[data-jsid="'+data.job_search_id+'"]'); }
+
+		// if job_search_id is already in prev history, just resort the table
+		if(active_row.length) {
+			var this_row = active_row.removeClass('active'),
+				other_rows = capsule_rows.not(this_row),
+				rows_above = j$('.jPreviousSearches .jCapsuleRow:lt(' + this_row.index() + ')');
+
+			if (!this_row.is(':first-child')) {
+				this_row.animate({ top: (this_row.position().top * -1 + 4) }, 500);
+				rows_above.animate({ top: this_row.outerHeight() }, 500).promise().done(function() {
+					this_row.prependTo('.jPreviousSearches').css('top', '');
+					rows_above.css('top','');
+					other_rows.fadeTo(500, 1).promise().done(function() {
+						other_rows.css('opacity', '');
+					});
+				});
+			} else {
+				other_rows.fadeTo(500, 1).promise().done(function() {
+					other_rows.css('opacity', '');
+				});
+			}
+		} else {
+			//--> TODO: (idea) make job history row an ajax template so we can call it for an individual job search id, then we dont have to manually assemble the mark-up
+			var elementIdWithTime = "locationTitle_" + j$.now();
+			var location_text_updated = location_text;
+			if( location_text !== location_text_short ){
+				location_text_updated = location_text_short + " " + location_text;
+			}
+			var spanElement = '<span id="'+elementIdWithTime+'" style="display:none;">'+location_text_updated+'</span>';
+
+			var new_row = j$('<div class="capsule_row jCapsuleRow">' +
+				'<div class="list_row_title">' +
+				'<a aria-describedby="' + elementIdWithTime + '" data-jsid="' + data.job_search_id
+				+ '" href="' + TVAPP.property.referrer_code_prefix + '/jobs/search/'
+				+ data.job_search_id + '" class="link_title font_bold jSearchLink">')
+				.append(j$('</a>' +
+					'</div>' +
+					'<div class="capsule_detail_list">' +
+					'<p class="listrow">' +
+					'<span class="entypo">' + TVAPP.smDict('entypo.location') + '</span>' +
+					'<span class="jSearchLocation" title="' + location_text + '"> ' + location_text_short + '</span>' +
+					'</p>' +
+					'</div>' +
+					spanElement +
+					'</div>'));
+			new_row.find('[data-jsid="' + data.job_search_id + '"]').text(search_text);
+			
+			if (capsule_rows.length > 0) {
+				if(data.update_existing) {
+					capsule_rows.first().remove();
+					new_row.prependTo(previous_searches);
+				}
+				else {
+					new_row.prependTo(previous_searches).hide().slideDown(500);
+					if (capsule_rows.length >= 5) {
+						j$('.jCapsuleRow:last', previous_searches).slideUp(500, function() {
+							j$(this).remove();
+						});
+					}
+					capsule_rows.fadeTo(500, 1).promise().done(function() {
+						capsule_rows.css('opacity', '');
+					});
+				}
+			} else {
+				previous_searches.empty().prepend(new_row);
+				j$('.jPreviousSearchesHldr').slideDown(500, function() {
+					j$(this).removeClass('ghost').css('display', '');
+				});
+			}			
+		}
+	};
+	j$(document).bind('updatePreviousSearchList', function(e,data) { updatePreviousSearchList(data); });
+
+	var refreshJobSearch = function() {
+		var active_results = j$('#jResultsArea .jResultsContent.jResultsActive');
+		if (active_results.length) {
+			// remove non-active search cache
+			j$('#jResultsArea .jResultsContent:not(.jResultsActive)').remove();
+			// reload the active search
+			loadSearchResults({'job_search_id':active_results.data('jsid'), 'page':active_results.find('#jPaginateCurrPage').text(), force_refresh:true});
+		}
+	};
+	j$(document).on('UserRefreshArea', refreshJobSearch);
+
+
+	if (History.enabled) {
+		/*var initial_data = {};
+
+		if (j$('body').hasClass('portal')) {
+		} else {
+			initial_data.job_search_id = j$('.jResultsActive', '#jResultsArea').data('jsid');
+		}
+
+		// Enhance initial default History State with custom data object 'initial_data' (which makes restoring it later easier)
+		History.replaceState(initial_data, document.title, document.location.href);
+		*/
+		History.Adapter.bind(window, 'statechange', function() {
+			document.title = TVAPP.property.docTitle; // ie 7 & 8 doc title bug fix
+			var State = History.getState(),
+				active_jsid = j$('#jResultsArea .jResultsActive').data('jsid'),
+				requested_jsid = parseInt(State.data.job_search_id),
+				active_page = Math.floor(j$('#jResultsArea .jResultsActive').find('#jPaginateCurrPage').text()),
+				requested_page = parseInt(State.data.job_search_page),
+				search_hldr = j$('.jSearchHldr');
+
+			if (!(requested_jsid >= 0)) {
+				// Check URI for job search id
+				var uri_jsid_regex = /\/jobs\/search\/(\d*)/i,
+					matches = State.hash.match(uri_jsid_regex);
+
+				if (matches && matches[1]) requested_jsid = matches[1];
+			}
+
+			if (requested_jsid >= 0) {
+				if (requested_jsid != active_jsid || requested_page != active_page) {
+					job_search_id = requested_jsid;
+					loadingState({'job_search_id':requested_jsid, 'page':requested_page});
+					loadSearchResults({'job_search_id':requested_jsid, 'page':requested_page});
+				}
+			} else if (j$('body').hasClass('portal') && search_hldr.hasClass('jHiddenHeading')) {
+				// Restore the original state of the portal page
+				//--> TODO: Restore 'portal' blockLoops
+				j$.log('Restoring portal');
+				window.location.reload();
+/*
+				search_hldr.removeClass('hidden_heading jHiddenHeading');
+				var search_heading = j$('.jHeadingWrapper'),
+					search_hldr_height = search_hldr.height(),
+					search_heading_height = search_heading.height(),
+					content_header = j$('.jContentHeader'),
+					current_results = j$('#jResultsArea .jResultsContent.jResultsActive');
+				search_hldr.addClass('hidden_heading jHiddenHeading');
+
+				if (j$('body').hasClass('mobile')) {
+					j$('#jMenuSearchToggle').parent().hide();
+				} else {
+					var promo_url = '/ajax/content/portal_conditional_message';
+
+//					if( j$(".jUserRefreshContextId",'.jUserRefreshArea.promo').length ) {
+//						promo_url += '?' + j$(".jUserRefreshContextId",'.jUserRefreshArea.promo').val() ;
+//					}
+
+					j$.ajax({
+						url: TVAPP.guid(promo_url),
+						dataType: 'json',
+						success: function(data, textStatus, xhr) {
+							var new_promo = j$(data.Result);
+							j$('.promo').empty().append(new_promo).slideDown(500);
+						},
+						error: function(xhr, textStatus,error) {
+							TVAPP.masterErrorHandler(xhr, textStatus, error, null);
+						}
+					});
+				}
+
+				if (j$('body').hasClass('mobile')) {
+					search_hldr.slideDown(500, function() {
+						search_hldr.removeClass('hidden_heading jHiddenHeading');
+					});
+				} else {
+					search_hldr.animate({ height: search_hldr_height }, 500, function() {
+						search_hldr.css('height', '');
+					});
+
+					search_heading.show().animate({ height: search_heading_height }, 500, function() {
+						search_heading.css('height', '');
+						search_hldr.removeClass('hidden_heading jHiddenHeading');
+
+						j$(window).scroll();
+					});
+				}
+
+				j$('.jCategoryTilesHldr').slideDown(500);
+
+				content_header.slideUp(500, function() { content_header.hide(); });
+
+				current_results.fadeOut(500, function() {
+					//current_results.remove();
+					current_results.removeClass('jResultsActive');
+
+					j$('#jSpotlightHldr').css('opacity', '').fadeIn();
+				});
+*/
+			} else if (j$('body').hasClass('job_list')) {
+				// State change on job_list page with no requested job search id - user probably refreshed
+				// job_list and clicked back to portal, so let's reload the (portal, or other) page
+				window.location.reload();
+			}
+		});
+	}
+
+
+	var mobileJobFiltersToggle = function(toggle_element) {
+		var filters_area = toggle_element.parents('.jJobsFiltersArea'),
+			filters = filters_area.children('.jJobSearchFilters'),
+			list_hldr = j$('.jJobResultsListHldr', filters_area);
+
+		if(!filters_area.hasClass('jFiltersOn')) {
+			var filter_height = filters.outerHeight(),
+				results_height = list_hldr.outerHeight(),
+				toggle_overlay = j$('<div class="jFilterToggleOverlay toggle_overlay"></div>');
+
+			filter_height > results_height ? filters_area.height(filter_height) : filters_area.height(results_height);
+
+			j$('.filter_hldr', filters).addClass('jCollapsedHolder');
+
+			filters_area.append(toggle_overlay);
+			filters.css({ 'display': 'block', 'z-index': '80' }).animate({ 'left': 0 }, 500);
+
+			list_hldr.css({ 'position': 'relative', 'overflow': 'visible', 'width': '100%', 'top': 0 }).animate({ 'left': '240px' }, 500);
+			toggle_overlay.animate({ 'left': '241px' }, 500, function() {
+				toggle_overlay.click(function(e) {
+					e.preventDefault();
+
+					mobileJobFiltersToggle(j$(this));
+				});
+			}); //,"opacity":"0.5"
+
+			filters_area.addClass('job_filters_on jFiltersOn');
+		} else {
+			var toggle_overlay = j$('.jFilterToggleOverlay', filters_area);
+
+			filters_area.css('height', '');
+
+			filters.animate({ 'left': '-240px' }, 500, 'easeInOutCirc', function() { /*filters.css({"display":"none"});*/ });
+
+			list_hldr.animate({ 'left': 0 }, 500, 'easeInOutCirc', function() {
+				list_hldr.css({ 'position': '', 'overflow': '', 'width': '', 'height': '', 'top': '' });
+
+				filters_area.removeClass('job_filters_on jFiltersOn');
+			});
+			toggle_overlay.animate({ 'left': 0 }, 500, 'easeInOutCirc', function() { toggle_overlay.remove(); }); //,"opacity":"0.0"
+		}
+	};
+
+	j$(document).on('click', '.jJobFiltersToggle', function(e) {
+		e.preventDefault();
+
+		mobileJobFiltersToggle(j$(this));
+	});
+})(jQuery);
